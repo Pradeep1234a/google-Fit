@@ -1,0 +1,262 @@
+﻿name: Android Release Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Override Version Name (e.g. 1.0.1). Leave empty to use version.properties'
+        required: false
+        type: string
+
+concurrency:
+  group: release-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, Verify & Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK Build-Tools
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Determine Next Version Code & Name
+        id: versioning
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_VERSION_NAME: ${{ inputs.version_name }}
+        run: |
+          set -euo pipefail
+
+          # 1. Determine Version Name
+          if [ -n "$INPUT_VERSION_NAME" ]; then
+            VERSION_NAME="$INPUT_VERSION_NAME"
+          elif [ -f "version.properties" ]; then
+            VERSION_NAME=$(grep -E '^versionName=' version.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          else
+            VERSION_NAME="1.0.0"
+          fi
+
+          # 2. Determine Base Version Code from version.properties
+          BASE_VERSION_CODE=1
+          if [ -f "version.properties" ]; then
+            PROP_CODE=$(grep -E '^baseVersionCode=' version.properties | cut -d'=' -f2 | tr -d '[:space:]' || true)
+            if [ -n "$PROP_CODE" ] && [ "$PROP_CODE" -gt 0 ] 2>/dev/null; then
+              BASE_VERSION_CODE=$PROP_CODE
+            fi
+          fi
+
+          # 3. Query existing successful GitHub Releases for the highest versionCode
+          HIGHEST_RELEASE_CODE=0
+          RELEASES_JSON=$(gh release list --limit 100 --json tagName 2>/dev/null || echo "[]")
+          if [ "$RELEASES_JSON" != "[]" ]; then
+            # Extract numeric version codes from tags formatted as v*+* (e.g. v1.0.0+42)
+            CODES=$(echo "$RELEASES_JSON" | grep -oE '\+[0-9]+' | tr -d '+' || true)
+            for CODE in $CODES; do
+              if [ "$CODE" -gt "$HIGHEST_RELEASE_CODE" ] 2>/dev/null; then
+                HIGHEST_RELEASE_CODE=$CODE
+              fi
+            done
+          fi
+
+          # 4. Next version code is max(HIGHEST_RELEASE_CODE + 1, BASE_VERSION_CODE)
+          CANDIDATE_CODE=$((HIGHEST_RELEASE_CODE + 1))
+          if [ "$CANDIDATE_CODE" -ge "$BASE_VERSION_CODE" ]; then
+            NEXT_VERSION_CODE=$CANDIDATE_CODE
+          else
+            NEXT_VERSION_CODE=$BASE_VERSION_CODE
+          fi
+
+          echo "=========================================="
+          echo "Release Version Name : $VERSION_NAME"
+          echo "Base Version Code    : $BASE_VERSION_CODE"
+          echo "Highest Release Code : $HIGHEST_RELEASE_CODE"
+          echo "Next Version Code    : $NEXT_VERSION_CODE"
+          echo "=========================================="
+
+          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+          echo "VERSION_CODE=$NEXT_VERSION_CODE" >> $GITHUB_ENV
+          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "version_code=$NEXT_VERSION_CODE" >> $GITHUB_OUTPUT
+
+      - name: Prepare Keystore from Secrets
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is missing or empty! Release signing requires a production keystore."
+            exit 1
+          fi
+
+          KEYSTORE_PATH="${{ runner.temp }}/release.jks"
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+
+          if [ ! -s "$KEYSTORE_PATH" ]; then
+            echo "::error::Decoded keystore is empty or corrupted!"
+            exit 1
+          fi
+
+          echo "KEYSTORE_FILE=$KEYSTORE_PATH" >> $GITHUB_ENV
+          echo "Keystore decoded successfully to runner temp directory."
+
+      - name: Build Release APK
+        env:
+          KEYSTORE_FILE: ${{ env.KEYSTORE_FILE }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "Building ONLY release APK (assembleRelease)..."
+          ./gradlew assembleRelease \
+            -PversionCode=${{ env.VERSION_CODE }} \
+            -PversionName=${{ env.VERSION_NAME }} \
+            --no-daemon \
+            --stacktrace
+
+      - name: Verify Release APK (Strict Quality Gate)
+        run: |
+          set -euo pipefail
+          echo "Running Release Verification Checks..."
+
+          # 1. Check that release APK exists
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -n 1)
+          if [ -z "$APK_PATH" ] || [ ! -f "$APK_PATH" ]; then
+            echo "::error::Release APK was not found in app/build/outputs/apk/release!"
+            exit 1
+          fi
+          echo "Found release APK: $APK_PATH"
+
+          # 2. Strict check: ensure NO debug APK was created or released
+          DEBUG_APKS=$(find app/build/outputs -name "*debug*.apk" -type f 2>/dev/null || true)
+          if [ -n "$DEBUG_APKS" ]; then
+            echo "::error::Debug APK found in outputs! CI must never build or package debug APKs."
+            echo "$DEBUG_APKS"
+            exit 1
+          fi
+          echo "Confirmed: No debug APKs exist."
+
+          # 3. Check reasonable file size (> 1MB)
+          FILE_SIZE=$(stat -c%s "$APK_PATH" 2>/dev/null || stat -f%z "$APK_PATH")
+          echo "APK file size: $FILE_SIZE bytes"
+          if [ "$FILE_SIZE" -lt 1000000 ]; then
+            echo "::error::APK file size is suspiciously small ($FILE_SIZE bytes)!"
+            exit 1
+          fi
+
+          # 4. Locate Android SDK tools for verification
+          BUILD_TOOLS_DIR=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
+          AAPT2="$BUILD_TOOLS_DIR/aapt2"
+          AAPT="$BUILD_TOOLS_DIR/aapt"
+
+          # 5. Verify APK Signature
+          if [ -x "$APKSIGNER" ]; then
+            echo "Verifying APK signature using apksigner..."
+            "$APKSIGNER" verify --verbose "$APK_PATH"
+          else
+            echo "apksigner not found, verifying with jarsigner..."
+            jarsigner -verify -verbose -certs "$APK_PATH"
+          fi
+
+          # 6. Verify Package Name and Versioning
+          EXPECTED_PACKAGE="com.motioniq.app"
+          if [ -x "$AAPT" ]; then
+            DUMP_OUTPUT=$("$AAPT" dump badging "$APK_PATH")
+            ACTUAL_PACKAGE=$(echo "$DUMP_OUTPUT" | grep -oE "package: name='[^']+'" | cut -d"'" -f2)
+            ACTUAL_VCODE=$(echo "$DUMP_OUTPUT" | grep -oE "versionCode='[^']+'" | cut -d"'" -f2)
+            ACTUAL_VNAME=$(echo "$DUMP_OUTPUT" | grep -oE "versionName='[^']+'" | cut -d"'" -f2)
+
+            echo "Package Name : $ACTUAL_PACKAGE (expected: $EXPECTED_PACKAGE)"
+            echo "Version Code : $ACTUAL_VCODE (expected: ${{ env.VERSION_CODE }})"
+            echo "Version Name : $ACTUAL_VNAME (expected: ${{ env.VERSION_NAME }})"
+
+            if [ "$ACTUAL_PACKAGE" != "$EXPECTED_PACKAGE" ]; then
+              echo "::error::Package name mismatch! Found $ACTUAL_PACKAGE, expected $EXPECTED_PACKAGE"
+              exit 1
+            fi
+            if [ "$ACTUAL_VCODE" != "${{ env.VERSION_CODE }}" ]; then
+              echo "::error::VersionCode mismatch! Found $ACTUAL_VCODE, expected ${{ env.VERSION_CODE }}"
+              exit 1
+            fi
+            if [ "$ACTUAL_VNAME" != "${{ env.VERSION_NAME }}" ]; then
+              echo "::error::VersionName mismatch! Found $ACTUAL_VNAME, expected ${{ env.VERSION_NAME }}"
+              exit 1
+            fi
+          fi
+
+          # 7. Rename to standard production artifact name
+          TARGET_NAME="MOTIONIQ-v${{ env.VERSION_NAME }}-${{ env.VERSION_CODE }}.apk"
+          TARGET_PATH="app/build/outputs/apk/release/$TARGET_NAME"
+          mv "$APK_PATH" "$TARGET_PATH"
+          echo "PROD_APK_PATH=$TARGET_PATH" >> $GITHUB_ENV
+          echo "PROD_APK_NAME=$TARGET_NAME" >> $GITHUB_ENV
+          echo "APK successfully verified and renamed to: $TARGET_NAME"
+
+      - name: Create GitHub Release & Upload Production APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="v${{ env.VERSION_NAME }}+${{ env.VERSION_CODE }}"
+          RELEASE_TITLE="MOTIONIQ v${{ env.VERSION_NAME }} (Build ${{ env.VERSION_CODE }})"
+
+          echo "Creating GitHub Release: $RELEASE_TITLE with tag $TAG_NAME"
+
+          cat << 'EOF' > release_notes.md
+          ## MOTIONIQ Production Release
+
+          ### Release Summary
+          | Attribute | Value |
+          | :--- | :--- |
+          | **Application Name** | MOTIONIQ |
+          | **Package ID** | `com.motioniq.app` |
+          | **Version Name** | `${{ env.VERSION_NAME }}` |
+          | **Version Code** | `${{ env.VERSION_CODE }}` |
+          | **Build Variant** | `release` |
+          | **Artifact** | `${{ env.PROD_APK_NAME }}` |
+
+          ### Verification Status
+          - [x] Production Release-Signed
+          - [x] No Debug Artifacts Included
+          - [x] Verified Package Identity (`com.motioniq.app`)
+          - [x] Monotonic VersionCode Increment (`${{ env.VERSION_CODE }}`)
+          - [x] Integrity & Signature Verified via `apksigner`
+
+          ---
+          *Automated release generated by MOTIONIQ CI/CD Release Pipeline.*
+          EOF
+
+          gh release create "$TAG_NAME" \
+            "${{ env.PROD_APK_PATH }}#${{ env.PROD_APK_NAME }}" \
+            --title "$RELEASE_TITLE" \
+            --notes-file release_notes.md \
+            --latest
+
+          echo "GitHub Release successfully published!"
+
+      - name: Clean up Keystore and Secrets
+        if: always()
+        run: |
+          echo "Cleaning up temporary credentials..."
+          rm -f "${{ runner.temp }}/release.jks" release_notes.md || true

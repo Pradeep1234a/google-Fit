@@ -1,0 +1,43 @@
+# Built application files
+*.apk
+*.aar
+*.aab
+
+# Output directory used by every module during a build.
+**/build/
+build/
+
+# Keystore files & signing credentials (CRITICAL: NEVER COMMIT)
+*.jks
+*.keystore
+*.p12
+*.pepk
+signing.properties
+secrets.properties
+*.env
+
+# Local configuration file (sdk path, api keys, etc)
+local.properties
+
+# Log files
+*.log
+
+# Android Studio / IntelliJ IDEA
+*.iml
+.idea/
+.gradle/
+.navigation/
+
+# OS-generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# External native build
+.externalNativeBuild
+.cxx/
+captures/
