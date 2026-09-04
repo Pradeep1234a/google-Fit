@@ -1,279 +1,234 @@
 package com.motioniq.app.ui.onboarding
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.Image
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
 import com.motioniq.app.R
 import com.motioniq.app.model.UserProfile
+import com.motioniq.app.theme.*
+import com.motioniq.app.ui.secondary.PermissionsScreen
+import com.motioniq.app.ui.secondary.ProfileSetupScreen
 
 @Composable
 fun OnboardingScreen(
     initialProfile: UserProfile,
     onCompleteOnboarding: (UserProfile) -> Unit
 ) {
-    var currentStep by remember { mutableIntStateOf(0) }
-    var name by remember { mutableStateOf(initialProfile.name) }
-    var weightText by remember { mutableStateOf(initialProfile.weightKg.toString()) }
-    var heightText by remember { mutableStateOf(initialProfile.heightCm.toString()) }
-    var stepGoalText by remember { mutableStateOf(initialProfile.dailyStepGoal.toString()) }
+    var step by remember { mutableIntStateOf(0) }
 
-    val totalSteps = 3
+    when (step) {
+        0 -> {
+            // 02_Onboarding.png
+            OnboardingWelcomeStep(
+                onSkip = { step = 2 },
+                onNext = { step = 1 }
+            )
+        }
+        1 -> {
+            // 03_Permissions.png
+            PermissionsScreen(
+                onContinueClick = { step = 2 }
+            )
+        }
+        2 -> {
+            // 04_ProfileSetup.png
+            ProfileSetupScreen(
+                initialProfile = initialProfile,
+                onSaveProfile = { updated ->
+                    onCompleteOnboarding(updated.copy(isOnboarded = true))
+                },
+                onBackClick = { step = 1 }
+            )
+        }
+    }
+}
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        // Top Progress Indicators
-        Row(
+@Composable
+private fun OnboardingWelcomeStep(
+    onSkip: () -> Unit,
+    onNext: () -> Unit
+) {
+    Scaffold(
+        containerColor = BackgroundLight
+    ) { padding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            repeat(totalSteps) { index ->
+            // 1. Top Bar with "Skip >" (02_Onboarding.png)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onSkip() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Skip",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF0F172A)
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = "Skip",
+                        tint = Color(0xFF0F172A),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // 2. Hero Visual & Value Proposition (02_Onboarding.png)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f)
+            ) {
+                // Hero Illustration Container
                 Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .height(6.dp)
+                        .size(260.dp)
+                        .clip(RoundedCornerShape(32.dp))
                         .background(
-                            if (index <= currentStep) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                            RoundedCornerShape(3.dp)
-                        )
-                )
-            }
-        }
-
-        // Main Step Content
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            when (currentStep) {
-                0 -> {
-                    // Welcome & Vision
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.logo),
-                            contentDescription = "MOTIONIQ Logo",
-                            modifier = Modifier
-                                .size(96.dp)
-                                .clip(CircleShape)
-                        )
-
-                        Spacer(modifier = Modifier.height(28.dp))
-
-                        Text(
-                            text = "MOTIONIQ",
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.primary,
-                            letterSpacing = 2.sp
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Text(
-                            text = "Understand your movement.\nNot just your steps.",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Text(
-                            text = "Intelligently combines phone hardware sensors, location services, and movement analytics to provide meaningful fitness intelligence.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                    }
-                }
-
-                1 -> {
-                    // Profile Setup
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Personalize Movement Model",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "Used for accurate calorie calculation and stride estimation.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        OutlinedTextField(
-                            value = name,
-                            onValueChange = { name = it },
-                            label = { Text("Your Name") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = weightText,
-                            onValueChange = { weightText = it },
-                            label = { Text("Weight (kg)") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = heightText,
-                            onValueChange = { heightText = it },
-                            label = { Text("Height (cm)") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                2 -> {
-                    // Daily Goals & Permissions
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Set Your Movement Target",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "Choose your baseline daily steps target.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        OutlinedTextField(
-                            value = stepGoalText,
-                            onValueChange = { stepGoalText = it },
-                            label = { Text("Daily Steps Goal") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Sensors & Privacy Agreement", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                                }
-                                Text(
-                                    text = "MOTIONIQ uses low-power hardware step sensors and fused GPS solely while tracking is enabled. Data stays 100% on your device.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Bottom Navigation Buttons
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (currentStep > 0) {
-                OutlinedButton(
-                    onClick = { currentStep -= 1 },
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(54.dp)
-                ) {
-                    Text("Back")
-                }
-            }
-
-            Button(
-                onClick = {
-                    if (currentStep < totalSteps - 1) {
-                        currentStep += 1
-                    } else {
-                        val weight = weightText.toDoubleOrNull() ?: initialProfile.weightKg
-                        val height = heightText.toDoubleOrNull() ?: initialProfile.heightCm
-                        val steps = stepGoalText.toIntOrNull() ?: initialProfile.dailyStepGoal
-                        onCompleteOnboarding(
-                            initialProfile.copy(
-                                name = name.ifBlank { "Alex Rivera" },
-                                weightKg = weight,
-                                heightCm = height,
-                                dailyStepGoal = steps,
-                                isOnboarded = true
+                            Brush.verticalGradient(
+                                colors = listOf(Color(0xFFE0F2FE), Color(0xFFF0FDF4))
                             )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                        // Background distant hills
+                        drawOval(
+                            color = Color(0xFFBBF7D0),
+                            topLeft = androidx.compose.ui.geometry.Offset(-size.width * 0.2f, size.height * 0.45f),
+                            size = androidx.compose.ui.geometry.Size(size.width * 1.4f, size.height * 0.8f)
+                        )
+                        // Foreground bright kinetic green hill
+                        drawOval(
+                            color = Color(0xFF4ADE80),
+                            topLeft = androidx.compose.ui.geometry.Offset(size.width * 0.1f, size.height * 0.55f),
+                            size = androidx.compose.ui.geometry.Size(size.width * 1.2f, size.height * 0.8f)
+                        )
+                        // Curved path
+                        drawOval(
+                            color = Color(0xFFF1F5F9),
+                            topLeft = androidx.compose.ui.geometry.Offset(size.width * 0.2f, size.height * 0.6f),
+                            size = androidx.compose.ui.geometry.Size(size.width * 0.35f, size.height * 0.7f)
                         )
                     }
-                },
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(54.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) {
+
+                    Icon(
+                        imageVector = Icons.Default.DirectionsRun,
+                        contentDescription = "Runner",
+                        tint = Color(0xFF0F172A),
+                        modifier = Modifier.size(110.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(40.dp))
+
+                // Heading
                 Text(
-                    text = if (currentStep == totalSteps - 1) "GET STARTED" else "CONTINUE",
-                    fontWeight = FontWeight.Bold
+                    text = "A Smarter Way\nto Move",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    textAlign = TextAlign.Center,
+                    color = Color(0xFF0F172A),
+                    lineHeight = 36.sp
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Subtitle
+                Text(
+                    text = "Track your steps, routes, workouts\nand discover new places with\nMOTIONIQ.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color(0xFF64748B),
+                    textAlign = TextAlign.Center,
+                    lineHeight = 24.sp
+                )
+            }
+
+            // 3. Bottom Row: Page Indicators & Circular Next Button (02_Onboarding.png)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp, start = 12.dp, end = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Indicator dots
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF0F172A))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFCBD5E1))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFCBD5E1))
+                    )
+                }
+
+                // Dark circular Next button (02_Onboarding.png)
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF0F172A))
+                        .clickable { onNext() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Next",
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
             }
         }
     }

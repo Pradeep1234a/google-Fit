@@ -1,8 +1,9 @@
-﻿package com.motioniq.app.ui.activity
+package com.motioniq.app.ui.activity
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -12,13 +13,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.motioniq.app.core.GpsCalculator
 import com.motioniq.app.model.MovementActivity
-import com.motioniq.app.ui.components.MetricCard
+import com.motioniq.app.theme.*
 import com.motioniq.app.ui.components.RouteMapCanvas
+import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 @Composable
@@ -29,192 +34,216 @@ fun ActivitySummaryScreen(
 ) {
     val scrollState = rememberScrollState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(horizontal = 20.dp, vertical = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Celebration Header
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "${activity.type.displayName.uppercase()} COMPLETE 🎉",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "Great movement session recorded!",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+    val formattedDate = try {
+        val sdf = SimpleDateFormat("EEE, d MMM yyyy • h:mm a", Locale.US)
+        sdf.format(Date(activity.startTimeMillis))
+    } catch (_: Exception) {
+        "Today • Recorded Session"
+    }
 
-        // Route Map Preview Canvas
-        RouteMapCanvas(
-            routePoints = activity.routePoints,
+    Scaffold(
+        containerColor = BackgroundLight
+    ) { padding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp),
-            isLiveTracking = false
-        )
-
-        // Start / End Points Card (PRD Section 20)
-        Card(
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            modifier = Modifier.fillMaxWidth()
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(scrollState)
+                .padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Column(
+            // Header (08_ActivitySummary.png)
+            Column {
+                Text(
+                    text = "${activity.type.displayName} Complete! \uD83C\uDF89",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextHighLight
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = formattedDate,
+                    fontSize = 14.sp,
+                    color = TextMediumLight
+                )
+            }
+
+            // Map Preview Card
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .height(200.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .background(Color(0xFF4CAF50), RoundedCornerShape(5.dp))
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Started at ${activity.startPlaceName}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .background(Color(0xFFE53935), RoundedCornerShape(5.dp))
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Ended at ${activity.endPlaceName}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-
-        // Metrics Grid (PRD Section 45)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            MetricCard(
-                title = "Distance",
-                value = "%.2f".format(Locale.US, activity.distanceMeters / 1000.0),
-                unit = "km",
-                icon = Icons.Default.Route,
-                modifier = Modifier.weight(1f)
-            )
-            MetricCard(
-                title = "Duration",
-                value = GpsCalculator.formatDuration(activity.durationSeconds),
-                unit = "",
-                icon = Icons.Default.Timer,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            MetricCard(
-                title = "Steps",
-                value = "${activity.steps}",
-                unit = "steps",
-                icon = Icons.Default.DirectionsWalk,
-                modifier = Modifier.weight(1f)
-            )
-            MetricCard(
-                title = "Est. Calories",
-                value = "≈${activity.caloriesKcal}",
-                unit = "kcal",
-                icon = Icons.Default.LocalFireDepartment,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            MetricCard(
-                title = "Avg Speed",
-                value = "%.2f".format(Locale.US, activity.avgSpeedKmh),
-                unit = "km/h",
-                icon = Icons.Default.Speed,
-                modifier = Modifier.weight(1f)
-            )
-            MetricCard(
-                title = "Avg Pace",
-                value = GpsCalculator.formatPace(activity.avgPaceMinPerKm),
-                unit = "",
-                icon = Icons.Default.Timer,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        // Confidence Indicator Badge (PRD Section 49)
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Verified,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Confidence: ${activity.confidenceLevel.name} • Step Source: ${activity.stepSource.name.replace('_', ' ')}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                RouteMapCanvas(
+                    routePoints = activity.routePoints,
+                    modifier = Modifier.fillMaxSize(),
+                    isLiveTracking = false
                 )
             }
+
+            // 6 Circular Badge Metrics (3 rows of 2) (08_ActivitySummary.png)
+            val formattedSteps = NumberFormat.getNumberInstance(Locale.US).format(activity.steps)
+            val paceText = GpsCalculator.formatPace(activity.avgPaceMinPerKm) + " /km"
+
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Row 1: Distance & Duration
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    SummaryMetricItem(
+                        icon = Icons.Default.Place,
+                        iconTint = ElectricBlue,
+                        badgeBg = SoftTileBlue,
+                        value = "%.2f km".format(Locale.US, activity.distanceMeters / 1000.0),
+                        label = "Distance",
+                        modifier = Modifier.weight(1f)
+                    )
+                    SummaryMetricItem(
+                        icon = Icons.Default.Timer,
+                        iconTint = KineticGreen,
+                        badgeBg = SoftTileGreen,
+                        value = GpsCalculator.formatDuration(activity.durationSeconds),
+                        label = "Duration",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Row 2: Steps & Calories
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    SummaryMetricItem(
+                        icon = Icons.Default.DirectionsWalk,
+                        iconTint = ElectricBlue,
+                        badgeBg = SoftTileBlue,
+                        value = formattedSteps,
+                        label = "Steps",
+                        modifier = Modifier.weight(1f)
+                    )
+                    SummaryMetricItem(
+                        icon = Icons.Default.LocalFireDepartment,
+                        iconTint = PulseOrange,
+                        badgeBg = SoftTileOrange,
+                        value = "${activity.caloriesKcal}",
+                        label = "Calories",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Row 3: Avg speed & Avg pace
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    SummaryMetricItem(
+                        icon = Icons.Default.Speed,
+                        iconTint = Color(0xFF0284C7),
+                        badgeBg = SoftTileBlue,
+                        value = "%.2f km/h".format(Locale.US, activity.avgSpeedKmh),
+                        label = "Avg speed",
+                        modifier = Modifier.weight(1f)
+                    )
+                    SummaryMetricItem(
+                        icon = Icons.Default.DirectionsRun,
+                        iconTint = AccentPurple,
+                        badgeBg = SoftTilePurple,
+                        value = paceText,
+                        label = "Avg pace",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Action Buttons: Primary "Save Activity" and Secondary "Share" (08_ActivitySummary.png)
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(
+                    onClick = onSaveClick,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandNavy),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                ) {
+                    Text(
+                        text = "Save Activity",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onDiscardClick,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Share",
+                        tint = TextHighLight,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Share",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextHighLight
+                    )
+                }
+            }
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Action Buttons: [DISCARD] [SAVE]
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+@Composable
+private fun SummaryMetricItem(
+    icon: ImageVector,
+    iconTint: Color,
+    badgeBg: Color,
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(46.dp)
+                .background(badgeBg, CircleShape)
         ) {
-            OutlinedButton(
-                onClick = onDiscardClick,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(54.dp)
-            ) {
-                Text("DISCARD", fontWeight = FontWeight.Bold)
-            }
-
-            Button(
-                onClick = onSaveClick,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(54.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) {
-                Text("SAVE SESSION", fontWeight = FontWeight.Bold)
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(
+                text = value,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextHighLight
+            )
+            Text(
+                text = label,
+                fontSize = 13.sp,
+                color = TextMediumLight
+            )
         }
     }
 }

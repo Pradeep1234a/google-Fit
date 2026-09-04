@@ -2,8 +2,10 @@ package com.motioniq.app.ui.stats
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,12 +16,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.motioniq.app.model.MovementActivity
-import com.motioniq.app.ui.components.MetricCard
+import com.motioniq.app.theme.*
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -31,270 +34,281 @@ fun StatsScreen(
     averageDaily: Long = 0L,
     bestDay: Pair<String, Long>? = null
 ) {
-    var selectedTimeframe by remember { mutableIntStateOf(1) } // 0: Daily, 1: Weekly, 2: Monthly
-    val timeframes = listOf("Daily", "Weekly", "Monthly")
+    var selectedPeriod by remember { mutableStateOf("Week") }
+    val periods = listOf("Day", "Week", "Month", "Year")
 
-    // Use dynamic weekly step distribution from step engine persistence
     val displayWeeklySteps = if (weeklySteps.isNotEmpty()) {
         weeklySteps
     } else {
-        listOf("Mon" to 0L, "Tue" to 0L, "Wed" to 0L, "Thu" to 0L, "Fri" to 0L, "Sat" to 0L, "Sun" to 0L)
+        listOf("Mon" to 4200L, "Tue" to 8426L, "Wed" to 5100L, "Thu" to 7800L, "Fri" to 8900L, "Sat" to 6200L, "Sun" to 7100L)
     }
 
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    val totalDistanceKm = if (activities.isNotEmpty()) {
+        activities.sumOf { it.distanceMeters } / 1000.0
+    } else {
+        42.8
+    }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 90.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        // Header
-        item {
-            Column {
+    val totalCalories = if (activities.isNotEmpty()) {
+        activities.sumOf { it.caloriesKcal }
+    } else {
+        2481
+    }
+
+    val totalActiveMinutes = if (activities.isNotEmpty()) {
+        (activities.sumOf { it.durationSeconds } / 60)
+    } else {
+        392L // 6h 32m
+    }
+
+    val totalStepsDisplay = if (weeklyTotal > 0) weeklyTotal else 56421L
+    val activityCount = if (activities.isNotEmpty()) activities.size else 5
+
+    val hours = totalActiveMinutes / 60
+    val mins = totalActiveMinutes % 60
+    val activeTimeText = if (hours > 0) "${hours}h ${mins}m" else "${mins}m"
+
+    Scaffold(
+        containerColor = BackgroundLight
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp)
+        ) {
+            // Header (10_Statistics.png)
+            item {
                 Text(
-                    text = "MOVEMENT ANALYTICS",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.primary,
-                    letterSpacing = 2.sp
-                )
-                Text(
-                    text = "Track your activity volume, trends, and records.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "Statistics",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextHighLight
                 )
             }
-        }
 
-        // Timeframe Selector Tabs
-        item {
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                timeframes.forEachIndexed { index, label ->
-                    SegmentedButton(
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = timeframes.size),
-                        onClick = { selectedTimeframe = index },
-                        selected = selectedTimeframe == index
-                    ) {
-                        Text(label)
+            // Period Selector Pills (Day, Week, Month, Year)
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFF1F5F9), RoundedCornerShape(24.dp))
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    periods.forEach { period ->
+                        val isSelected = selectedPeriod == period
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                                .background(
+                                    if (isSelected) BrandNavy else Color.Transparent,
+                                    RoundedCornerShape(20.dp)
+                                )
+                                .clickable { selectedPeriod = period }
+                        ) {
+                            Text(
+                                text = period,
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color.White else TextMediumLight
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        // Weekly Bar Chart Canvas (PRD Section 27)
-        item {
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+            // Date Range Navigator (< 2 - 8 Sep 2024 >)
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    IconButton(onClick = {}) {
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "Previous", tint = TextMediumLight)
+                    }
+
+                    Text(
+                        text = "2 – 8 Sep 2024",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextHighLight
+                    )
+
+                    IconButton(onClick = {}) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Next", tint = TextMediumLight)
+                    }
+                }
+            }
+
+            // Hero Distance + Growth Badge
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column {
+                        Text(
+                            text = "%.1f km".format(Locale.US, totalDistanceKm),
+                            fontSize = 38.sp,
+                            fontWeight = FontWeight.Black,
+                            color = TextHighLight,
+                            letterSpacing = (-0.5).sp
+                        )
+                        Text(
+                            text = "Total Distance",
+                            fontSize = 14.sp,
+                            color = TextMediumLight
+                        )
+                    }
+
+                    // Green growth badge (↑ 14%)
+                    Surface(
+                        color = Color(0xFFDCFCE7),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Column {
-                            Text(
-                                text = "WEEKLY STEP DISTRIBUTION",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                letterSpacing = 1.sp
-                            )
-                            val formattedTotal = NumberFormat.getNumberInstance(Locale.US).format(weeklyTotal)
-                            Text(
-                                text = "$formattedTotal total steps",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val formattedAvg = NumberFormat.getNumberInstance(Locale.US).format(averageDaily)
+                            Icon(
+                                imageVector = Icons.Default.ArrowUpward,
+                                contentDescription = null,
+                                tint = Color(0xFF16A34A),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "Avg $formattedAvg / day",
-                                style = MaterialTheme.typography.labelSmall,
+                                text = "14%",
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                color = Color(0xFF16A34A)
                             )
                         }
                     }
+                }
+            }
 
-                    // Bar Chart
-                    Box(
+            // Bar Chart (10_Statistics.png)
+            item {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(160.dp)
+                            .padding(horizontal = 16.dp, vertical = 20.dp)
                     ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val maxStep = (displayWeeklySteps.maxOfOrNull { it.second }?.toFloat() ?: 10000f).coerceAtLeast(1000f)
-                            val barWidth = 24.dp.toPx()
-                            val spacing = (size.width - (barWidth * displayWeeklySteps.size)) / (displayWeeklySteps.size + 1)
-                            val chartHeight = size.height - 25.dp.toPx()
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp)
+                        ) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val maxVal = (displayWeeklySteps.maxOfOrNull { it.second }?.toFloat() ?: 10000f).coerceAtLeast(1000f)
+                                val barWidth = 26.dp.toPx()
+                                val stepCount = displayWeeklySteps.size
+                                val totalBarsWidth = barWidth * stepCount
+                                val spacing = (size.width - totalBarsWidth) / (stepCount + 1)
+                                val chartHeight = size.height
 
-                            displayWeeklySteps.forEachIndexed { index, pair ->
-                                val x = spacing + index * (barWidth + spacing)
-                                val barHeight = if (maxStep > 0f) ((pair.second.toFloat() / maxStep) * chartHeight).coerceIn(0f, chartHeight) else 0f
-                                val y = chartHeight - barHeight
-
-                                // Background bar
-                                drawRoundRect(
-                                    color = trackColor,
-                                    topLeft = Offset(x, 0f),
-                                    size = Size(barWidth, chartHeight),
-                                    cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                                val gradientBrush = Brush.verticalGradient(
+                                    colors = listOf(ElectricBlue, Color(0xFF00E5FF))
                                 )
 
-                                // Filled active bar
-                                if (barHeight > 0f) {
-                                    val isLastDay = index == displayWeeklySteps.size - 1
+                                displayWeeklySteps.forEachIndexed { index, pair ->
+                                    val x = spacing + index * (barWidth + spacing)
+                                    val barHeight = ((pair.second.toFloat() / maxVal) * chartHeight).coerceIn(12f, chartHeight)
+                                    val y = chartHeight - barHeight
+
                                     drawRoundRect(
-                                        color = if (isLastDay) primaryColor else primaryColor.copy(alpha = 0.65f),
+                                        brush = gradientBrush,
                                         topLeft = Offset(x, y),
                                         size = Size(barWidth, barHeight),
-                                        cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                                        cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
                                     )
                                 }
                             }
                         }
-                    }
 
-                    // Weekdays Labels Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceAround
-                    ) {
-                        displayWeeklySteps.forEachIndexed { index, it ->
-                            val isLastDay = index == displayWeeklySteps.size - 1
-                            Text(
-                                text = it.first,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (isLastDay) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isLastDay) primaryColor else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Weekdays Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceAround
+                        ) {
+                            displayWeeklySteps.forEach { pair ->
+                                Text(
+                                    text = pair.first,
+                                    fontSize = 12.sp,
+                                    color = TextMediumLight,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Aggregate Metrics Grid
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                MetricCard(
-                    title = "Total Distance",
-                    value = "41.8",
-                    unit = "km",
-                    icon = Icons.Default.Route,
-                    modifier = Modifier.weight(1f)
-                )
-                MetricCard(
-                    title = "Active Days",
-                    value = "6 / 7",
-                    unit = "days",
-                    icon = Icons.Default.CalendarToday,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                MetricCard(
-                    title = "Total Calories",
-                    value = "2,380",
-                    unit = "kcal",
-                    icon = Icons.Default.LocalFireDepartment,
-                    modifier = Modifier.weight(1f)
-                )
-                MetricCard(
-                    title = "Avg Pace",
-                    value = "9:24",
-                    unit = "/km",
-                    icon = Icons.Default.Speed,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
+            // 2x2 Metric Cards (10_Statistics.png)
+            item {
+                val formattedSteps = NumberFormat.getNumberInstance(Locale.US).format(totalStepsDisplay)
+                val formattedCal = NumberFormat.getNumberInstance(Locale.US).format(totalCalories)
 
-        // AI Movement Intelligence Insights (PRD Section 30)
-        item {
-            Text(
-                text = "MOVEMENT INTELLIGENCE INSIGHTS",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 1.sp
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                InsightCard(
-                    icon = Icons.Default.TrendingUp,
-                    title = "Distance Improvement",
-                    description = "You walked 14% farther this week compared to last week (38.4 km vs 33.6 km)."
-                )
-                InsightCard(
-                    icon = Icons.Default.AccessTime,
-                    title = "Peak Movement Window",
-                    description = "Your most consistent movement happens between 6:00 PM – 8:00 PM."
-                )
-                InsightCard(
-                    icon = Icons.Default.Speed,
-                    title = "Pace Progression",
-                    description = "Average running pace improved from 6:15/km to 5:48/km on outdoor courses."
-                )
-            }
-        }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        StatMetricCard(
+                            icon = Icons.Default.DirectionsWalk,
+                            iconTint = ElectricBlue,
+                            badgeBg = SoftTileBlue,
+                            value = formattedSteps,
+                            label = "Steps",
+                            modifier = Modifier.weight(1f)
+                        )
+                        StatMetricCard(
+                            icon = Icons.Default.Timer,
+                            iconTint = Color(0xFF2563EB),
+                            badgeBg = SoftTileBlue,
+                            value = activeTimeText,
+                            label = "Active time",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
 
-        // Personal Records Section (PRD Section 28)
-        item {
-            Text(
-                text = "PERSONAL RECORDS",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 1.sp
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    RecordRow(title = "Longest Walk", value = "6.8 km", date = "Aug 28")
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
-                    RecordRow(title = "Longest Run", value = "5.2 km", date = "Sep 01")
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
-                    val mostStepsLabel = if (bestDay != null && bestDay.second > 0L) {
-                        NumberFormat.getNumberInstance(Locale.US).format(bestDay.second) + " steps"
-                    } else "0 steps"
-                    val mostStepsDate = bestDay?.first ?: "Today"
-                    RecordRow(title = "Most Steps in a Day", value = mostStepsLabel, date = mostStepsDate)
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
-                    RecordRow(title = "Longest Streak", value = "Active Tracking", date = "Active")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        StatMetricCard(
+                            icon = Icons.Default.LocalFireDepartment,
+                            iconTint = PulseOrange,
+                            badgeBg = SoftTileOrange,
+                            value = formattedCal,
+                            label = "Calories",
+                            modifier = Modifier.weight(1f)
+                        )
+                        StatMetricCard(
+                            icon = Icons.Default.Route,
+                            iconTint = AccentPurple,
+                            badgeBg = SoftTilePurple,
+                            value = "$activityCount",
+                            label = "Activities",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
@@ -302,50 +316,55 @@ fun StatsScreen(
 }
 
 @Composable
-private fun InsightCard(
+private fun StatMetricCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    description: String
+    iconTint: Color,
+    badgeBg: Color,
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier = modifier
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalAlignment = Alignment.Top
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(40.dp)
-                    .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp))
+                    .size(46.dp)
+                    .background(badgeBg, shape = CircleShape)
             ) {
-                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = iconTint,
+                    modifier = Modifier.size(24.dp)
+                )
             }
-            Spacer(modifier = Modifier.width(14.dp))
-            Column {
-                Text(text = title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(text = description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-}
 
-@Composable
-private fun RecordRow(title: String, value: String, date: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(text = title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-            Text(text = date, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column {
+                Text(
+                    text = value,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextHighLight
+                )
+                Text(
+                    text = label,
+                    fontSize = 13.sp,
+                    color = TextMediumLight
+                )
+            }
         }
-        Text(text = value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
     }
 }

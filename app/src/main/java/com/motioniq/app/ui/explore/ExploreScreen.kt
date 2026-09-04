@@ -1,10 +1,12 @@
 package com.motioniq.app.ui.explore
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -12,265 +14,291 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.motioniq.app.model.ActivityType
 import com.motioniq.app.model.ParkPlace
-import java.util.Locale
+import com.motioniq.app.theme.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExploreScreen(
     parks: List<ParkPlace>,
     isGpsActive: Boolean = false,
     onStartRouteClick: (ActivityType) -> Unit
 ) {
-    var selectedDistanceFilter by remember { mutableStateOf<Double?>(null) }
-    val distanceOptions = listOf(1.0, 3.0, 5.0, 10.0)
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("Parks") }
+    val categories = listOf("Parks", "Walking", "Running", "Cycling")
 
-    val filteredParks = remember(selectedDistanceFilter, parks) {
-        if (selectedDistanceFilter != null) {
-            parks.filter { it.distanceKm <= selectedDistanceFilter!! }
-        } else {
-            parks
-        }
-    }
+    var selectedParkIndex by remember { mutableIntStateOf(0) }
+    val selectedPark = if (parks.isNotEmpty()) parks[selectedParkIndex.coerceIn(0, parks.size - 1)] else null
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 90.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Header
-        item {
-            Column {
-                Text(
-                    text = "EXPLORE ROUTES",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.primary,
-                    letterSpacing = 2.sp
-                )
-                Text(
-                    text = "Discover nearby parks, greenways, and running paths.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
+    Scaffold(
+        containerColor = BackgroundLight
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Header (14_Explore.png)
+            Text(
+                text = "Explore",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextHighLight
+            )
+
+            // Search Bar (14_Explore.png)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .background(Color(0xFFF1F5F9), RoundedCornerShape(16.dp))
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = if (isGpsActive) Icons.Default.MyLocation else Icons.Default.LocationSearching,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = if (isGpsActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = TextLowLight,
+                        modifier = Modifier.size(20.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = if (isGpsActive) "Sorted by proximity to your current location" else "Curated paths near you",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (isGpsActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Search parks, routes, places...",
+                        fontSize = 14.sp,
+                        color = TextLowLight
                     )
                 }
             }
-        }
 
-        // Distance Filter Chips (PRD Section 23)
-        item {
-            Column {
-                Text(
-                    text = "FILTER DISTANCE",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    letterSpacing = 1.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    item {
-                        FilterChip(
-                            selected = selectedDistanceFilter == null,
-                            onClick = { selectedDistanceFilter = null },
-                            label = { Text("All Distances") }
-                        )
-                    }
-                    items(distanceOptions) { dist ->
-                        FilterChip(
-                            selected = selectedDistanceFilter == dist,
-                            onClick = { selectedDistanceFilter = dist },
-                            label = { Text("< ${dist.toInt()} km") }
-                        )
-                    }
-                }
-            }
-        }
-
-        // Route Recommendation Hero Card (PRD Section 24)
-        item {
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                modifier = Modifier.fillMaxWidth()
+            // Category Filter Pills (14_Explore.png)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
+                categories.forEach { category ->
+                    val isSelected = selectedCategory == category
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .background(
+                                if (isSelected) SoftTileBlue else Color.White,
+                                CircleShape
+                            )
+                            .clickable { selectedCategory = category }
+                            .padding(horizontal = 18.dp, vertical = 8.dp)
                     ) {
                         Text(
-                            text = "INTELLIGENT RECOMMENDATION",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                            letterSpacing = 1.sp
+                            text = category,
+                            fontSize = 14.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) BrandNavy else TextMediumLight
                         )
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Text(
-                        text = "3.8 km Scenic Green Loop",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-
-                    Text(
-                        text = "Estimated 44 min • Terrain: Easy • Green Space: High • Traffic: Low",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Button(
-                        onClick = { onStartRouteClick(ActivityType.WALKING) },
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.DirectionsWalk, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("START WALKING THIS ROUTE", fontWeight = FontWeight.Bold)
                     }
                 }
             }
-        }
 
-        // Nearby Places List Header
-        item {
-            Text(
-                text = "NEARBY DESTINATIONS (${filteredParks.size})",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                letterSpacing = 1.sp
-            )
-        }
-
-        // Parks List
-        items(filteredParks) { park ->
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier.fillMaxWidth()
+            // Map Area with Green Parks, River, Pins, and Target Center Button
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(Color(0xFFF8FAFC), RoundedCornerShape(20.dp))
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = park.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = park.type,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.primary
-                        ) {
-                            Text(
-                                text = "%.1f km".format(Locale.US, park.distanceKm),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
-                        }
+                // Stylized Map Canvas
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    // Park polygon
+                    val parkPath = Path().apply {
+                        moveTo(size.width * 0.35f, size.height * 0.2f)
+                        lineTo(size.width * 0.85f, size.height * 0.25f)
+                        lineTo(size.width * 0.75f, size.height * 0.65f)
+                        lineTo(size.width * 0.38f, size.height * 0.6f)
+                        close()
                     }
+                    drawPath(parkPath, color = Color(0xFFDCFCE7))
 
-                    Text(
-                        text = park.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    // River curve
+                    drawLine(
+                        color = Color(0xFF93C5FD),
+                        start = Offset(0f, size.height * 0.35f),
+                        end = Offset(size.width, size.height * 0.55f),
+                        strokeWidth = 6.dp.toPx()
                     )
 
+                    // Roads
+                    drawLine(
+                        color = Color(0xFFE2E8F0),
+                        start = Offset(size.width * 0.3f, 0f),
+                        end = Offset(size.width * 0.4f, size.height),
+                        strokeWidth = 3.dp.toPx()
+                    )
+                    drawLine(
+                        color = Color(0xFFE2E8F0),
+                        start = Offset(0f, size.height * 0.65f),
+                        end = Offset(size.width, size.height * 0.65f),
+                        strokeWidth = 3.dp.toPx()
+                    )
+                }
+
+                // Green Park Location Pins
+                val pinPositions = listOf(
+                    0.25f to 0.45f,
+                    0.32f to 0.52f,
+                    0.48f to 0.5f,
+                    0.6f to 0.38f,
+                    0.42f to 0.3f,
+                    0.82f to 0.28f
+                )
+
+                pinPositions.forEachIndexed { index, (xRatio, yRatio) ->
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .offset(
+                                x = (xRatio * 300).dp,
+                                y = (yRatio * 280).dp
+                            )
+                            .clickable {
+                                if (parks.isNotEmpty()) {
+                                    selectedParkIndex = index % parks.size
+                                }
+                            }
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(Color(0xFF16A34A), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Place,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Centering Target FAB Button (14_Explore.png)
+                FloatingActionButton(
+                    onClick = {},
+                    shape = CircleShape,
+                    containerColor = Color.White,
+                    contentColor = BrandNavy,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = 12.dp, end = 12.dp)
+                        .size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FilterCenterFocus,
+                        contentDescription = "Locate",
+                        tint = BrandNavy,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            // Selected Park Card at Bottom (14_Explore.png)
+            if (selectedPark != null) {
+                Card(
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onStartRouteClick(ActivityType.WALKING) }
+                ) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        AssistChip(
-                            onClick = {},
-                            label = { Text("ETA: ~${park.etaMinutes} min") },
-                            leadingIcon = { Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                        )
-                        AssistChip(
-                            onClick = {},
-                            label = { Text(park.difficulty) },
-                            leadingIcon = { Icon(Icons.Default.Terrain, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                        )
-                        AssistChip(
-                            onClick = {},
-                            label = { Text("Nature: ${park.greenSpace}") }
-                        )
-                    }
+                        // Image Thumbnail Placeholder
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(74.dp)
+                                .background(Color(0xFF86EFAC), RoundedCornerShape(16.dp))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Park,
+                                contentDescription = null,
+                                tint = Color(0xFF15803D),
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = { onStartRouteClick(ActivityType.WALKING) },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Walk Here")
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = selectedPark.name,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextHighLight
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "%.1f km • %s • %d min".format(
+                                    selectedPark.distanceKm,
+                                    selectedPark.difficulty,
+                                    selectedPark.etaMinutes
+                                ),
+                                fontSize = 13.sp,
+                                color = TextMediumLight
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Badges: Scenic & Popular
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Surface(
+                                    color = SoftTileBlue,
+                                    shape = CircleShape
+                                ) {
+                                    Text(
+                                        text = "Scenic",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF0284C7),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+                                Surface(
+                                    color = SoftTileGreen,
+                                    shape = CircleShape
+                                ) {
+                                    Text(
+                                        text = "Popular",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF16A34A),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                         }
-                        Button(
-                            onClick = { onStartRouteClick(ActivityType.RUNNING) },
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Run Here")
-                        }
+
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = "Start",
+                            tint = Color(0xFF94A3B8),
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                 }
             }

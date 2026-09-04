@@ -1,10 +1,11 @@
-﻿package com.motioniq.app.ui.activity
+package com.motioniq.app.ui.activity
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -18,7 +19,9 @@ import com.motioniq.app.core.GpsCalculator
 import com.motioniq.app.model.ActivityType
 import com.motioniq.app.model.RoutePoint
 import com.motioniq.app.model.WorkoutState
+import com.motioniq.app.theme.*
 import com.motioniq.app.ui.components.RouteMapCanvas
+import java.text.NumberFormat
 import java.util.Locale
 
 @Composable
@@ -39,13 +42,131 @@ fun LiveActivityScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(BrandNavy)
     ) {
-        // Map Canvas (occupies upper section)
+        // TOP HALF: Dark Navy HUD (07_ActiveTracking.png)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+        ) {
+            // Header: Back, Activity Name, GPS indicator
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onPauseClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.White
+                    )
+                }
+
+                Text(
+                    text = activityType.displayName,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .background(CardDarkElevated, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "GPS",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(KineticGreen, CircleShape)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Hero Duration Timer
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = GpsCalculator.formatDuration(durationSeconds),
+                    fontSize = 52.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White,
+                    letterSpacing = (-1).sp
+                )
+                Text(
+                    text = "Duration",
+                    fontSize = 14.sp,
+                    color = Color(0xFF94A3B8)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // 2x2 Metric Cards Grid
+            val formattedSteps = NumberFormat.getNumberInstance(Locale.US).format(steps)
+            val paceText = if (paceMinPerKm > 0 && paceMinPerKm < 60) {
+                val mins = paceMinPerKm.toInt()
+                val secs = ((paceMinPerKm - mins) * 60).toInt()
+                "%d:%02d".format(Locale.US, mins, secs)
+            } else "--:--"
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Distance
+                    HudMetricBox(
+                        value = "%.2f".format(Locale.US, distanceMeters / 1000.0),
+                        label = "Distance (km)",
+                        modifier = Modifier.weight(1f)
+                    )
+                    // Pace
+                    HudMetricBox(
+                        value = paceText,
+                        label = "Pace (/km)",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Steps
+                    HudMetricBox(
+                        value = formattedSteps,
+                        label = "Steps",
+                        modifier = Modifier.weight(1f)
+                    )
+                    // Calories
+                    HudMetricBox(
+                        value = "$calories",
+                        label = "Calories",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+
+        // BOTTOM HALF: Interactive Route Map Canvas with Floating Controls
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1.1f)
+                .weight(1f)
         ) {
             RouteMapCanvas(
                 routePoints = routePoints,
@@ -53,181 +174,116 @@ fun LiveActivityScreen(
                 isLiveTracking = true
             )
 
-            // Activity Type Overlay Chip
+            // Floating Bottom Action Pills (07_ActiveTracking.png)
             Row(
-                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                        RoundedCornerShape(20.dp)
-                    )
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(text = activityType.emoji, fontSize = 18.sp)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = activityType.displayName.uppercase(),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-
-        // Live Metrics Panel (occupies bottom section)
-        Card(
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 24.dp, vertical = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                // Hero Distance
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "%.2f".format(Locale.US, distanceMeters / 1000.0),
-                        style = MaterialTheme.typography.displayMedium,
-                        fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "KILOMETERS",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                // Supporting Metrics Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = GpsCalculator.formatDuration(durationSeconds),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "TIME",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val metricText = if (activityType == ActivityType.RUNNING) {
-                            GpsCalculator.formatPace(paceMinPerKm)
-                        } else {
-                            "%.1f km/h".format(Locale.US, speedKmh)
-                        }
-                        Text(
-                            text = metricText,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (activityType == ActivityType.RUNNING) "PACE" else "SPEED",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "$steps",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "STEPS",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "≈$calories",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFF5722)
-                        )
-                        Text(
-                            text = "KCAL",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                // Controls Row: [PAUSE/RESUME] [STOP]
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    if (state == WorkoutState.ACTIVE) {
-                        Button(
-                            onClick = onPauseClick,
-                            shape = CircleShape,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            Icon(
-                                Icons.Default.Pause,
-                                contentDescription = "Pause",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "PAUSE",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    } else {
-                        Button(
-                            onClick = onResumeClick,
-                            shape = CircleShape,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                        ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "Resume")
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("RESUME", fontWeight = FontWeight.Bold)
-                        }
-                    }
-
+                // Pause / Resume Pill Button
+                if (state == WorkoutState.ACTIVE) {
                     Button(
-                        onClick = onStopClick,
+                        onClick = onPauseClick,
                         shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandNavy),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp),
                         modifier = Modifier
                             .weight(1f)
-                            .height(56.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                            .height(56.dp)
                     ) {
-                        Icon(Icons.Default.Stop, contentDescription = "Stop", tint = MaterialTheme.colorScheme.onError)
+                        Icon(
+                            imageVector = Icons.Default.Pause,
+                            contentDescription = "Pause",
+                            tint = Color.White
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("STOP", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onError)
+                        Text(
+                            text = "Pause",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = onResumeClick,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = KineticGreen),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Resume",
+                            tint = BrandNavy
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Resume",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = BrandNavy
+                        )
                     }
                 }
+
+                // Stop Pill Button (Red)
+                Button(
+                    onClick = onStopClick,
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF334B)),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Stop,
+                        contentDescription = "Stop",
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Stop",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun HudMetricBox(
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .background(CardDarkElevated, RoundedCornerShape(16.dp))
+            .padding(vertical = 14.dp)
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = value,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                color = Color(0xFF94A3B8)
+            )
         }
     }
 }
