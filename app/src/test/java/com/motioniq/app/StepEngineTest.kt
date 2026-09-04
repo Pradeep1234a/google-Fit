@@ -1,12 +1,14 @@
 package com.motioniq.app
 
+import com.motioniq.app.core.CalorieCalculator
+import com.motioniq.app.core.GpsCalculator
+import com.motioniq.app.core.step.ActivityPersistence
 import com.motioniq.app.core.step.DistanceEstimator
 import com.motioniq.app.core.step.StepSourceType
-import com.motioniq.app.core.GpsCalculator
-import com.motioniq.app.core.CalorieCalculator
-import com.motioniq.app.model.ActivityType
+import com.motioniq.app.model.*
 import org.junit.Assert.*
 import org.junit.Test
+import java.io.File
 
 /**
  * Unit tests for the MOTIONIQ step counting engine components.
@@ -324,4 +326,175 @@ class StepEngineTest {
         val delta3 = (currentSteps - lastSynced).coerceAtLeast(0L)
         assertEquals("After sync recorded, delta must return to 0", 0L, delta3)
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Activity & Route Persistence Tests
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Test
+    fun activityPersistence_singleActivity_roundTripMatches() {
+        val tempFile = File.createTempFile("test_activity_", ".json")
+        try {
+            val persistence = ActivityPersistence(tempFile)
+            val route = listOf(
+                RoutePoint(12.9716, 77.5946, 920.0, 1.4f, 1700000000000L),
+                RoutePoint(12.9726, 77.5956, 922.5, 1.6f, 1700000010000L)
+            )
+            val original = MovementActivity(
+                id = "act-test-123",
+                type = ActivityType.RUNNING,
+                startTimeMillis = 1700000000000L,
+                endTimeMillis = 1700001800000L,
+                durationSeconds = 1800L,
+                steps = 3200L,
+                distanceMeters = 2450.75,
+                caloriesKcal = 185,
+                avgSpeedKmh = 4.9,
+                avgPaceMinPerKm = 12.24,
+                startPlaceName = "Cubbon Park Gate",
+                endPlaceName = "Metro Station",
+                confidenceLevel = ConfidenceLevel.HIGH,
+                stepSource = StepSource.HARDWARE_SENSOR,
+                routePoints = route
+            )
+
+            val json = persistence.serializeActivity(original)
+            val deserialized = persistence.deserializeActivity(json)
+
+            assertNotNull("Deserialized activity must not be null", deserialized)
+            assertEquals(original.id, deserialized!!.id)
+            assertEquals(original.type, deserialized.type)
+            assertEquals(original.startTimeMillis, deserialized.startTimeMillis)
+            assertEquals(original.endTimeMillis, deserialized.endTimeMillis)
+            assertEquals(original.durationSeconds, deserialized.durationSeconds)
+            assertEquals(original.steps, deserialized.steps)
+            assertEquals(original.distanceMeters, deserialized.distanceMeters, 0.01)
+            assertEquals(original.caloriesKcal, deserialized.caloriesKcal)
+            assertEquals(original.confidenceLevel, deserialized.confidenceLevel)
+            assertEquals(original.stepSource, deserialized.stepSource)
+            assertEquals(2, deserialized.routePoints.size)
+            assertEquals(12.9716, deserialized.routePoints[0].latitude, 0.0001)
+            assertEquals(77.5946, deserialized.routePoints[0].longitude, 0.0001)
+            assertEquals(920.0, deserialized.routePoints[0].altitudeMeters!!, 0.1)
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    @Test
+    fun activityPersistence_activityList_saveAndLoadPreservesOrder() {
+        val tempFile = File.createTempFile("test_activities_list_", ".json")
+        try {
+            val persistence = ActivityPersistence(tempFile)
+            val act1 = MovementActivity(
+                id = "act-1",
+                type = ActivityType.WALKING,
+                startTimeMillis = 1000L,
+                endTimeMillis = 2000L,
+                durationSeconds = 600L,
+                steps = 800L,
+                distanceMeters = 600.0,
+                caloriesKcal = 35,
+                avgSpeedKmh = 3.6,
+                avgPaceMinPerKm = 16.6,
+                startPlaceName = "A",
+                endPlaceName = "B"
+            )
+            val act2 = MovementActivity(
+                id = "act-2",
+                type = ActivityType.CYCLING,
+                startTimeMillis = 3000L,
+                endTimeMillis = 4000L,
+                durationSeconds = 1200L,
+                steps = 0L,
+                distanceMeters = 5000.0,
+                caloriesKcal = 150,
+                avgSpeedKmh = 15.0,
+                avgPaceMinPerKm = 4.0,
+                startPlaceName = "C",
+                endPlaceName = "D"
+            )
+
+            assertTrue(persistence.saveActivities(listOf(act1, act2)))
+            val loaded = persistence.loadActivities()
+
+            assertEquals(2, loaded.size)
+            assertEquals("act-1", loaded[0].id)
+            assertEquals(ActivityType.WALKING, loaded[0].type)
+            assertEquals("act-2", loaded[1].id)
+            assertEquals(ActivityType.CYCLING, loaded[1].type)
+
+            // Test clearing
+            assertTrue(persistence.clearActivities())
+            assertTrue(persistence.loadActivities().isEmpty())
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    @Test
+    fun activityPersistence_corruptJson_returnsEmptyListSafely() {
+        val tempFile = File.createTempFile("test_corrupt_", ".json")
+        try {
+            val persistence = ActivityPersistence(tempFile)
+            tempFile.writeText("{{{ not valid json at all [[[")
+            val loaded = persistence.loadActivities()
+            assertNotNull(loaded)
+            assertTrue("Corrupted JSON must yield empty list without throwing", loaded.isEmpty())
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    @Test
+    fun activityPersistence_emptyFile_returnsEmptyList() {
+        val tempFile = File.createTempFile("test_empty_", ".json")
+        try {
+            val persistence = ActivityPersistence(tempFile)
+            val loaded = persistence.loadActivities()
+            assertTrue(loaded.isEmpty())
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // GPS Route Distance & Calculation Tests
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Test
+    fun gpsCalculator_routeDistance_multiPointCalculatesAccurately() {
+        // Points ~111 meters apart along latitude (1 degree lat ~= 111 km, 0.001 deg ~= 111 m)
+        val p1 = RoutePoint(12.9710, 77.5940)
+        val p2 = RoutePoint(12.9720, 77.5940)
+        val p3 = RoutePoint(12.9730, 77.5940)
+
+        val totalDist = GpsCalculator.calculateRouteDistanceMeters(listOf(p1, p2, p3))
+        // 2 segments of ~111.19m each = ~222.4m
+        assertTrue("Total distance should be ~222m, was $totalDist", totalDist in 215.0..230.0)
+    }
+
+    @Test
+    fun gpsCalculator_routeDistance_singleOrEmpty_returnsZero() {
+        assertEquals(0.0, GpsCalculator.calculateRouteDistanceMeters(emptyList()), 0.001)
+        assertEquals(0.0, GpsCalculator.calculateRouteDistanceMeters(listOf(RoutePoint(12.97, 77.59))), 0.001)
+    }
+
+    @Test
+    fun dynamicParks_proximityCalculation_sortsNearestFirst() {
+        // User located near Cubbon Park (12.9763, 77.5929)
+        val userLat = 12.9765
+        val userLon = 77.5930
+
+        val park1 = ParkPlace("1", "Cubbon", "Park", 5.0, 60, 12.9763, 77.5929, "Easy", "High", "Zero", "")
+        val park2 = ParkPlace("2", "Far Park", "Park", 1.0, 10, 13.0500, 77.6500, "Easy", "High", "Zero", "")
+
+        val dist1 = GpsCalculator.calculateDistanceMeters(userLat, userLon, park1.latitude, park1.longitude) / 1000.0
+        val dist2 = GpsCalculator.calculateDistanceMeters(userLat, userLon, park2.latitude, park2.longitude) / 1000.0
+
+        val sorted = listOf(park2.copy(distanceKm = dist2), park1.copy(distanceKm = dist1)).sortedBy { it.distanceKm }
+        assertEquals("Cubbon", sorted[0].name)
+        assertTrue("Cubbon should be less than 0.1 km away", sorted[0].distanceKm < 0.1)
+    }
 }
+

@@ -2,30 +2,31 @@ package com.motioniq.app.core
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.location.Location
+import com.motioniq.app.core.location.LocationTracker
+import com.motioniq.app.core.step.ActivityPersistence
 import com.motioniq.app.core.step.DistanceEstimator
 import com.motioniq.app.core.step.StepCountingEngine
+import com.motioniq.app.core.step.StepForegroundService
 import com.motioniq.app.core.step.StepSourceType
 import com.motioniq.app.model.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Central repository managing movement data, workout tracking, and user profile.
+ * Central repository managing movement data, workout tracking, location services,
+ * activity history persistence, and user profile.
  *
- * Integrates the production [StepCountingEngine] for real sensor-based step
- * counting. The engine handles all hardware/software sensor selection,
- * daily baselines, persistence, reboot recovery, and midnight rollover.
- *
- * This repository:
- * - Exposes todaySummary that automatically updates from real sensor data
- * - Manages workout sessions with real step counting during active workouts
- * - Persists user profile and goals
- * - Provides distance/calorie estimates based on real step counts
+ * Integrates:
+ * - Production [StepCountingEngine] for real sensor-based step counting
+ * - [LocationTracker] for real GPS route tracking and distance calculations
+ * - [ActivityPersistence] for persistent workout history across restarts
+ * - [StepForegroundService] for live workout notifications
+ * - [HealthConnectBridge] for external ecosystem synchronization
  */
 class MotionRepository(private val context: Context) {
     private val prefs: SharedPreferences =
@@ -33,9 +34,11 @@ class MotionRepository(private val context: Context) {
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    // --- Production Step Engine & Health Connect ---
+    // --- Production Step Engine, Persistence & Location ---
     val stepEngine = StepCountingEngine(context)
     val healthConnect = com.motioniq.app.core.health.HealthConnectBridge(context)
+    val activityPersistence = ActivityPersistence(context)
+    val locationTracker = LocationTracker(context)
 
     // User Profile & Goals
     private val _userProfile = MutableStateFlow(loadUserProfile())
@@ -45,8 +48,8 @@ class MotionRepository(private val context: Context) {
     private val _todaySummary = MutableStateFlow(DailySummary(getCurrentDateString()))
     val todaySummary: StateFlow<DailySummary> = _todaySummary.asStateFlow()
 
-    // Activity History (completed workout sessions)
-    private val _activities = MutableStateFlow<List<MovementActivity>>(emptyList())
+    // Activity History (completed workout sessions loaded from persistent storage)
+    private val _activities = MutableStateFlow<List<MovementActivity>>(activityPersistence.loadActivities())
     val activities: StateFlow<List<MovementActivity>> = _activities.asStateFlow()
 
     // Active Workout Tracking State
@@ -80,7 +83,7 @@ class MotionRepository(private val context: Context) {
     private val _completedActivity = MutableStateFlow<MovementActivity?>(null)
     val completedActivity: StateFlow<MovementActivity?> = _completedActivity.asStateFlow()
 
-    // Explore Nearby Parks Dataset
+    // Curated Explore Nearby Parks Dataset
     val nearbyParks = listOf(
         ParkPlace(
             id = "park_1",
@@ -152,6 +155,7 @@ class MotionRepository(private val context: Context) {
     private var workoutJob: Job? = null
     private var workoutStartTime = 0L
     private var workoutStartSteps = 0L // engine step count at workout start
+    private var isUsingRealGps = false
 
     /** Backward compatibility for UI profile sensor check */
     val hasHardwareStepSensor: Boolean
@@ -185,10 +189,6 @@ class MotionRepository(private val context: Context) {
         )
     }
 
-    /**
-     * Estimate active minutes from step count.
-     * Assumes average walking cadence of ~100 steps/min.
-     */
     private fun estimateActiveMinutes(steps: Long): Int {
         if (steps <= 0) return 0
         return (steps / 100).toInt().coerceAtLeast(1)
@@ -210,11 +210,46 @@ class MotionRepository(private val context: Context) {
         workoutStartTime = System.currentTimeMillis()
         workoutStartSteps = stepEngine.todaySteps.value
 
-        // Starting position
+        // Start live foreground notification
+        StepForegroundService.start(
+            context,
+            "MOTIONIQ — ${type.displayName}",
+            "Starting workout..."
+        )
+
+        // Initialize GPS tracking for outdoor activities
+        isUsingRealGps = false
         var currentLat = 12.9716
         var currentLng = 77.5946
-        val initialPoint = RoutePoint(currentLat, currentLng, 920.0, 0f, workoutStartTime)
-        _activeRoutePoints.value = listOf(initialPoint)
+
+        if (type.isOutdoorGps && locationTracker.hasPermission()) {
+            val lastLoc = locationTracker.getLastKnownLocation()
+            if (lastLoc != null) {
+                currentLat = lastLoc.latitude
+                currentLng = lastLoc.longitude
+                val initialPoint = RoutePoint(
+                    latitude = currentLat,
+                    longitude = currentLng,
+                    altitudeMeters = if (lastLoc.hasAltitude()) lastLoc.altitude else 920.0,
+                    speedMps = if (lastLoc.hasSpeed()) lastLoc.speed else 0f,
+                    timestampMillis = workoutStartTime
+                )
+                _activeRoutePoints.value = listOf(initialPoint)
+            }
+            // Register real GPS listener
+            val trackingStarted = locationTracker.startTracking { newPoint ->
+                if (_workoutState.value == WorkoutState.ACTIVE) {
+                    _activeRoutePoints.value = _activeRoutePoints.value + newPoint
+                    isUsingRealGps = true
+                }
+            }
+            isUsingRealGps = trackingStarted
+        }
+
+        if (_activeRoutePoints.value.isEmpty()) {
+            val fallbackPoint = RoutePoint(currentLat, currentLng, 920.0, 0f, workoutStartTime)
+            _activeRoutePoints.value = listOf(fallbackPoint)
+        }
 
         workoutJob?.cancel()
         workoutJob = scope.launch {
@@ -224,29 +259,39 @@ class MotionRepository(private val context: Context) {
                     _activeDurationSeconds.value += 1
                     val duration = _activeDurationSeconds.value
 
-                    // Get real steps from engine (delta since workout started)
+                    // Real steps from engine (delta since workout started)
                     val currentEngineSteps = stepEngine.todaySteps.value
                     val workoutSteps = (currentEngineSteps - workoutStartSteps).coerceAtLeast(0L)
                     _activeSteps.value = workoutSteps
 
-                    // Calculate distance from real steps
                     val profile = _userProfile.value
                     val isRunning = type == ActivityType.RUNNING
-                    val distance = DistanceEstimator.estimateDistanceMeters(workoutSteps, profile.heightCm, isRunning)
-                    _activeDistanceMeters.value = distance
 
-                    // Calculate speed and pace from real distance and time
-                    val currentSpeed = GpsCalculator.calculateSpeedKmh(distance, duration)
+                    // Distance Calculation: fuse real GPS route distance with step-based estimator
+                    val stepDistance = DistanceEstimator.estimateDistanceMeters(workoutSteps, profile.heightCm, isRunning)
+                    val gpsDistance = if (_activeRoutePoints.value.size >= 2) {
+                        GpsCalculator.calculateRouteDistanceMeters(_activeRoutePoints.value)
+                    } else 0.0
+
+                    val finalDistance = if (isUsingRealGps && gpsDistance > 10.0) {
+                        gpsDistance
+                    } else {
+                        stepDistance
+                    }
+                    _activeDistanceMeters.value = finalDistance
+
+                    // Speed and Pace
+                    val currentSpeed = GpsCalculator.calculateSpeedKmh(finalDistance, duration)
                     _activeSpeedKmh.value = currentSpeed
-                    _activePaceMinPerKm.value = GpsCalculator.calculatePaceMinPerKm(distance, duration)
+                    _activePaceMinPerKm.value = GpsCalculator.calculatePaceMinPerKm(finalDistance, duration)
 
-                    // Calculate calories from real steps
+                    // Calories
                     _activeCalories.value = DistanceEstimator.estimateCalories(workoutSteps, profile.weightKg, isRunning)
 
-                    // Update GPS coordinates for route canvas (simulated path based on distance)
-                    if (type.isOutdoorGps && duration % 3 == 0L && workoutSteps > 0) {
+                    // Dead-reckoning fallback if GPS not available outdoor
+                    if (type.isOutdoorGps && !isUsingRealGps && duration % 3 == 0L && workoutSteps > 0) {
                         val bearing = (duration % 360).toDouble() * Math.PI / 180.0
-                        val stepDistMeters = distance / workoutSteps.coerceAtLeast(1L)
+                        val stepDistMeters = finalDistance / workoutSteps.coerceAtLeast(1L)
                         currentLat += Math.cos(bearing) * stepDistMeters * 0.000009
                         currentLng += Math.sin(bearing) * stepDistMeters * 0.000009
                         val newPoint = RoutePoint(
@@ -258,6 +303,17 @@ class MotionRepository(private val context: Context) {
                         )
                         _activeRoutePoints.value = _activeRoutePoints.value + newPoint
                     }
+
+                    // Update live notification every 3 seconds
+                    if (duration % 3 == 0L) {
+                        val distKmStr = String.format(Locale.US, "%.2f km", finalDistance / 1000.0)
+                        val durStr = GpsCalculator.formatDuration(duration)
+                        StepForegroundService.update(
+                            context,
+                            "MOTIONIQ — ${type.displayName}",
+                            "$durStr | $distKmStr | $workoutSteps steps"
+                        )
+                    }
                 }
             }
         }
@@ -266,17 +322,33 @@ class MotionRepository(private val context: Context) {
     fun pauseWorkout() {
         if (_workoutState.value == WorkoutState.ACTIVE) {
             _workoutState.value = WorkoutState.PAUSED
+            val durStr = GpsCalculator.formatDuration(_activeDurationSeconds.value)
+            val distKmStr = String.format(Locale.US, "%.2f km", _activeDistanceMeters.value / 1000.0)
+            StepForegroundService.update(
+                context,
+                "MOTIONIQ — Paused",
+                "$durStr | $distKmStr (Paused)"
+            )
         }
     }
 
     fun resumeWorkout() {
         if (_workoutState.value == WorkoutState.PAUSED) {
             _workoutState.value = WorkoutState.ACTIVE
+            val durStr = GpsCalculator.formatDuration(_activeDurationSeconds.value)
+            val distKmStr = String.format(Locale.US, "%.2f km", _activeDistanceMeters.value / 1000.0)
+            StepForegroundService.update(
+                context,
+                "MOTIONIQ — ${_activeActivityType.value.displayName}",
+                "$durStr | $distKmStr | ${_activeSteps.value} steps"
+            )
         }
     }
 
     fun stopWorkout(): MovementActivity {
         workoutJob?.cancel()
+        locationTracker.stopTracking()
+        StepForegroundService.stop(context)
         _workoutState.value = WorkoutState.COMPLETED
 
         val endTime = System.currentTimeMillis()
@@ -302,6 +374,9 @@ class MotionRepository(private val context: Context) {
             StepSourceType.NONE -> ConfidenceLevel.LOW
         }
 
+        val startName = if (isUsingRealGps) "GPS Tracked Start" else "Start Point"
+        val endName = if (isUsingRealGps) "GPS Tracked Finish" else "End Point"
+
         val activity = MovementActivity(
             type = type,
             startTimeMillis = workoutStartTime,
@@ -312,8 +387,8 @@ class MotionRepository(private val context: Context) {
             caloriesKcal = cals,
             avgSpeedKmh = speed,
             avgPaceMinPerKm = pace,
-            startPlaceName = "Start Point",
-            endPlaceName = "End Point",
+            startPlaceName = startName,
+            endPlaceName = endName,
             confidenceLevel = confidence,
             stepSource = stepSource,
             routePoints = _activeRoutePoints.value
@@ -325,14 +400,46 @@ class MotionRepository(private val context: Context) {
     fun saveWorkout(activity: MovementActivity) {
         val updatedList = listOf(activity) + _activities.value
         _activities.value = updatedList
+        activityPersistence.saveActivities(updatedList)
+
         _workoutState.value = WorkoutState.IDLE
         _completedActivity.value = null
-        // Summary is already driven by stepEngine.todaySteps
+        StepForegroundService.stop(context)
+
+        // Refresh today's summary activity count
+        updateTodaySummaryFromEngine(stepEngine.todaySteps.value)
     }
 
     fun discardWorkout() {
+        locationTracker.stopTracking()
+        StepForegroundService.stop(context)
         _workoutState.value = WorkoutState.IDLE
         _completedActivity.value = null
+    }
+
+    // ── Dynamic Location-Aware Explore ──
+
+    /**
+     * Computes distance and ETA from current user location to each nearby park,
+     * sorting by nearest first. If location is unavailable, returns default curated list.
+     */
+    fun getDynamicNearbyParks(): List<ParkPlace> {
+        val userLoc = locationTracker.currentLocation.value ?: locationTracker.getLastKnownLocation()
+        if (userLoc == null) {
+            return nearbyParks
+        }
+        return nearbyParks.map { park ->
+            val distMeters = GpsCalculator.calculateDistanceMeters(
+                userLoc.latitude, userLoc.longitude,
+                park.latitude, park.longitude
+            )
+            val distKm = distMeters / 1000.0
+            val etaMin = (distKm / 4.8 * 60.0).toInt().coerceAtLeast(1)
+            park.copy(
+                distanceKm = (distKm * 10).toInt() / 10.0,
+                etaMinutes = etaMin
+            )
+        }.sortedBy { it.distanceKm }
     }
 
     // ── User Profile Management ──
@@ -370,9 +477,10 @@ class MotionRepository(private val context: Context) {
 
     fun resetData() {
         prefs.edit().clear().apply()
+        activityPersistence.clearActivities()
         stepEngine.persistence.clearAll()
-        _todaySummary.value = DailySummary(getCurrentDateString())
         _activities.value = emptyList()
+        _todaySummary.value = DailySummary(getCurrentDateString())
         _userProfile.value = UserProfile(isOnboarded = true)
     }
 

@@ -137,7 +137,8 @@ fun MainAppContainer(repository: MotionRepository) {
                 }
                 AppTab.EXPLORE -> {
                     ExploreScreen(
-                        parks = repository.nearbyParks,
+                        parks = repository.getDynamicNearbyParks(),
+                        isGpsActive = repository.locationTracker.hasPermission(),
                         onStartRouteClick = { type ->
                             repository.startWorkout(type)
                         }

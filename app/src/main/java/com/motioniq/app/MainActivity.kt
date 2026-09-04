@@ -29,6 +29,11 @@ class MainActivity : ComponentActivity() {
       repository.stepEngine.stop()
       repository.stepEngine.start()
     }
+    val locationGranted = (permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false) ||
+                          (permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false)
+    if (locationGranted) {
+      repository.locationTracker.getLastKnownLocation()
+    }
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,6 +61,13 @@ class MainActivity : ComponentActivity() {
     if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION)
         != PackageManager.PERMISSION_GRANTED) {
       needed.add(Manifest.permission.ACTIVITY_RECOGNITION)
+    }
+
+    // Location Tracking (Fine & Coarse)
+    if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+        != PackageManager.PERMISSION_GRANTED) {
+      needed.add(Manifest.permission.ACCESS_FINE_LOCATION)
+      needed.add(Manifest.permission.ACCESS_COARSE_LOCATION)
     }
 
     // Post Notifications (Android 13+, API 33+)

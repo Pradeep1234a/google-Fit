@@ -1,4 +1,4 @@
-﻿package com.motioniq.app.ui.explore
+package com.motioniq.app.ui.explore
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,6 +23,7 @@ import java.util.Locale
 @Composable
 fun ExploreScreen(
     parks: List<ParkPlace>,
+    isGpsActive: Boolean = false,
     onStartRouteClick: (ActivityType) -> Unit
 ) {
     var selectedDistanceFilter by remember { mutableStateOf<Double?>(null) }
@@ -58,6 +59,21 @@ fun ExploreScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (isGpsActive) Icons.Default.MyLocation else Icons.Default.LocationSearching,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = if (isGpsActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isGpsActive) "Sorted by proximity to your current location" else "Curated paths near you",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isGpsActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 

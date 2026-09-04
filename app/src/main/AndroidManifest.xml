@@ -38,7 +38,7 @@
         <service
             android:name=".core.step.StepForegroundService"
             android:exported="false"
-            android:foregroundServiceType="health" />
+            android:foregroundServiceType="health|location" />
 
         <!-- Health Connect permissions usage and privacy rationale alias -->
         <activity-alias
