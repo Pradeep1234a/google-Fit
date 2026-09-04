@@ -1,7 +1,10 @@
 package com.motioniq.app.ui.secondary
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -27,23 +30,36 @@ fun NotificationsScreen(
     var activityCompletion by remember { mutableStateOf(true) }
     var achievements by remember { mutableStateOf(true) }
     var weeklyInsights by remember { mutableStateOf(true) }
-    var tipsAndRecommendations by remember { mutableStateOf(false) }
+    var gaitDriftAlerts by remember { mutableStateOf(true) }
 
     Scaffold(
-        containerColor = BackgroundLight,
+        containerColor = SlateGround,
         topBar = {
             TopAppBar(
-                title = { },
+                title = {
+                    Text(
+                        text = "TELEMETRY NOTIFICATIONS",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp,
+                        color = Color.White
+                    )
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(
+                        onClick = onBackClick,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(SlateSurface1, CircleShape)
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = TextHighLight
+                            tint = Color.White
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = BackgroundLight)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = SlateGround)
             )
         }
     ) { padding ->
@@ -52,78 +68,83 @@ fun NotificationsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(top = 8.dp, bottom = 40.dp)
         ) {
-            // Header (18_Notifications.png)
             item {
-                Text(
-                    text = "Notifications",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextHighLight
-                )
-                Spacer(modifier = Modifier.height(14.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Alerts & Cues",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Real-time haptic & audio feedback on kinematic events.",
+                        fontSize = 13.sp,
+                        color = TextMediumDark
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
             }
 
             item {
-                NotificationToggleItem(
-                    icon = Icons.Default.CalendarToday,
-                    title = "Daily summary",
-                    subtitle = "Your daily activity recap",
-                    checked = dailySummary,
-                    onCheckedChange = { dailySummary = it }
-                )
-            }
-
-            item {
-                NotificationToggleItem(
-                    icon = Icons.Default.Notifications,
-                    title = "Goal reminders",
-                    subtitle = "Remind you to stay on track",
-                    checked = goalReminders,
-                    onCheckedChange = { goalReminders = it }
-                )
-            }
-
-            item {
-                NotificationToggleItem(
-                    icon = Icons.Default.CheckCircleOutline,
-                    title = "Activity completion",
-                    subtitle = "When you finish a workout",
-                    checked = activityCompletion,
-                    onCheckedChange = { activityCompletion = it }
-                )
-            }
-
-            item {
-                NotificationToggleItem(
-                    icon = Icons.Default.MilitaryTech,
-                    title = "Achievements",
-                    subtitle = "When you unlock a new badge",
-                    checked = achievements,
-                    onCheckedChange = { achievements = it }
-                )
-            }
-
-            item {
-                NotificationToggleItem(
-                    icon = Icons.Default.Insights,
-                    title = "Weekly insights",
-                    subtitle = "A summary of your progress",
-                    checked = weeklyInsights,
-                    onCheckedChange = { weeklyInsights = it }
-                )
-            }
-
-            item {
-                NotificationToggleItem(
-                    icon = Icons.Default.Lightbulb,
-                    title = "Tips and recommendations",
-                    subtitle = null,
-                    checked = tipsAndRecommendations,
-                    onCheckedChange = { tipsAndRecommendations = it }
-                )
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = SlateSurface1,
+                    border = BorderStroke(1.dp, CyanBorderSubtle),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                        NotificationToggleItem(
+                            icon = Icons.Default.Vibration,
+                            title = "Gait asymmetry alert",
+                            subtitle = "Trigger haptic pulse if bilateral delta >2.0%",
+                            checked = gaitDriftAlerts,
+                            onCheckedChange = { gaitDriftAlerts = it }
+                        )
+                        Divider(color = SlateSurface2, thickness = 0.5.dp)
+                        NotificationToggleItem(
+                            icon = Icons.Default.Speed,
+                            title = "Cadence pacing cues",
+                            subtitle = "Metronome audio cue when slipping below target spm",
+                            checked = goalReminders,
+                            onCheckedChange = { goalReminders = it }
+                        )
+                        Divider(color = SlateSurface2, thickness = 0.5.dp)
+                        NotificationToggleItem(
+                            icon = Icons.Default.CheckCircleOutline,
+                            title = "Session completion summary",
+                            subtitle = "Instant kinematic report upon saving activity",
+                            checked = activityCompletion,
+                            onCheckedChange = { activityCompletion = it }
+                        )
+                        Divider(color = SlateSurface2, thickness = 0.5.dp)
+                        NotificationToggleItem(
+                            icon = Icons.Default.MilitaryTech,
+                            title = "Achievement unlocked",
+                            subtitle = "XP awards and tier advancement banners",
+                            checked = achievements,
+                            onCheckedChange = { achievements = it }
+                        )
+                        Divider(color = SlateSurface2, thickness = 0.5.dp)
+                        NotificationToggleItem(
+                            icon = Icons.Default.CalendarToday,
+                            title = "Daily volume briefing",
+                            subtitle = "Daily morning targets and recovery index",
+                            checked = dailySummary,
+                            onCheckedChange = { dailySummary = it }
+                        )
+                        Divider(color = SlateSurface2, thickness = 0.5.dp)
+                        NotificationToggleItem(
+                            icon = Icons.Default.Insights,
+                            title = "Weekly biomechanic digest",
+                            subtitle = "7-day joint load and efficiency analysis",
+                            checked = weeklyInsights,
+                            onCheckedChange = { weeklyInsights = it }
+                        )
+                    }
+                }
             }
         }
     }
@@ -133,55 +154,55 @@ fun NotificationsScreen(
 private fun NotificationToggleItem(
     icon: ImageVector,
     title: String,
-    subtitle: String?,
+    subtitle: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        modifier = Modifier.fillMaxWidth()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .size(38.dp)
+                .background(StitchTeal.copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = title,
-                tint = TextHighLight,
-                modifier = Modifier.size(24.dp)
-            )
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = TextHighLight
-                )
-                if (subtitle != null) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = subtitle,
-                        fontSize = 13.sp,
-                        color = TextMediumLight
-                    )
-                }
-            }
-
-            Switch(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = Color(0xFF0284C7)
-                )
+                contentDescription = null,
+                tint = StitchCyan,
+                modifier = Modifier.size(20.dp)
             )
         }
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                text = subtitle,
+                fontSize = 11.sp,
+                color = TextMediumDark
+            )
+        }
+
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = SlateGround,
+                checkedTrackColor = StitchCyan,
+                uncheckedThumbColor = TextLowDark,
+                uncheckedTrackColor = SlateSurface3
+            )
+        )
     }
 }

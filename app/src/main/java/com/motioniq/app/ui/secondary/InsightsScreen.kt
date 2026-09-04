@@ -1,6 +1,8 @@
 package com.motioniq.app.ui.secondary
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -28,20 +30,33 @@ fun InsightsScreen(
     onBackClick: () -> Unit
 ) {
     Scaffold(
-        containerColor = BackgroundLight,
+        containerColor = SlateGround,
         topBar = {
             TopAppBar(
-                title = { },
+                title = {
+                    Text(
+                        text = "MOVEMENT INTELLIGENCE",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp,
+                        color = Color.White
+                    )
+                },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(
+                        onClick = onBackClick,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(SlateSurface1, CircleShape)
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = TextHighLight
+                            tint = Color.White
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = BackgroundLight)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = SlateGround)
             )
         }
     ) { padding ->
@@ -50,32 +65,38 @@ fun InsightsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(top = 8.dp, bottom = 40.dp)
         ) {
-            // Header (13_Insights.png)
             item {
-                Text(
-                    text = "Insights",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextHighLight
-                )
-                Spacer(modifier = Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Kinetic Diagnostics",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Algorithmic synthesis of your stride dynamics and energy vectors.",
+                        fontSize = 13.sp,
+                        color = TextMediumDark
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
             }
 
             // 1. Distance Insight Card
             item {
                 InsightRowCard(
-                    icon = Icons.Default.Lightbulb,
-                    iconTint = Color(0xFF16A34A),
-                    badgeBg = SoftTileGreen,
+                    icon = Icons.Default.TrendingUp,
+                    iconTint = StitchCyan,
+                    badgeBg = StitchTeal.copy(alpha = 0.5f),
                     text = buildAnnotatedString {
-                        append("You walked ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = TextHighLight)) {
+                        append("Biomechanical volume increased ")
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = StitchCyan)) {
                             append("14% farther")
                         }
-                        append(" this week than last week.")
+                        append(" than your previous 7-day rolling cycle.")
                     }
                 )
             }
@@ -83,58 +104,58 @@ fun InsightsScreen(
             // 2. Active Time Insight Card
             item {
                 InsightRowCard(
-                    icon = Icons.Default.BarChart,
-                    iconTint = Color(0xFF2563EB),
-                    badgeBg = SoftTileBlue,
+                    icon = Icons.Default.Schedule,
+                    iconTint = KineticEmerald,
+                    badgeBg = KineticEmerald.copy(alpha = 0.2f),
                     text = buildAnnotatedString {
-                        append("Your most active time is between ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = TextHighLight)) {
-                            append("6–8 PM")
+                        append("Optimal kinetic flow zone occurs between ")
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) {
+                            append("6:00 – 8:30 PM")
                         }
-                        append(".")
+                        append(" with minimal ground reaction deceleration.")
                     }
                 )
             }
 
-            // 3. Active Days Insight Card
+            // 3. Cadence Insight Card
             item {
                 InsightRowCard(
-                    icon = Icons.Default.CalendarToday,
-                    iconTint = Color(0xFF0284C7),
-                    badgeBg = SoftTileCyan,
+                    icon = Icons.Default.Speed,
+                    iconTint = StitchCyan,
+                    badgeBg = StitchDarkCyan,
                     text = buildAnnotatedString {
-                        append("You completed ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = TextHighLight)) {
-                            append("4 more")
+                        append("Your tempo cadence stabilized at ")
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = StitchCyan)) {
+                            append("174 spm")
                         }
-                        append(" active days than last week.")
+                        append(", yielding a +4.2% metabolic economy enhancement.")
                     }
                 )
             }
 
-            // 4. Pace Insight Card
+            // 4. Symmetry Insight Card
             item {
                 InsightRowCard(
-                    icon = Icons.Default.TrendingUp,
-                    iconTint = Color(0xFF16A34A),
-                    badgeBg = SoftTileGreen,
+                    icon = Icons.Default.Balance,
+                    iconTint = KineticEmerald,
+                    badgeBg = KineticEmerald.copy(alpha = 0.2f),
                     text = buildAnnotatedString {
-                        append("Your average running pace improved by ")
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = TextHighLight)) {
-                            append("8%")
+                        append("Bilateral contact delta improved to ")
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = KineticEmerald)) {
+                            append("±0.2%")
                         }
-                        append(".")
+                        append(", well within the optimal symmetry threshold.")
                     }
                 )
             }
 
-            // Encouragement Banner Card (13_Insights.png)
+            // Encouragement Banner Card
             item {
-                Spacer(modifier = Modifier.height(12.dp))
-                Card(
-                    shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = SlateSurface1,
+                    border = BorderStroke(1.dp, CyanBorderGlow),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -145,30 +166,32 @@ fun InsightsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Keep it up!",
-                                fontSize = 18.sp,
+                                text = "Optimal Strain Threshold",
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextHighLight
+                                color = Color.White
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "You're on track to reach your monthly goal.",
-                                fontSize = 14.sp,
-                                color = TextMediumLight
+                                text = "Musculoskeletal balance is primed for progressive overload.",
+                                fontSize = 13.sp,
+                                color = TextMediumDark,
+                                lineHeight = 18.sp
                             )
                         }
 
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
-                                .size(56.dp)
-                                .background(SoftTileCyan, CircleShape)
+                                .size(50.dp)
+                                .background(StitchTeal.copy(alpha = 0.5f), CircleShape)
+                                .border(1.dp, StitchCyan, CircleShape)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.DirectionsRun,
+                                imageVector = Icons.Default.AutoAwesome,
                                 contentDescription = null,
-                                tint = Color(0xFF0284C7),
-                                modifier = Modifier.size(32.dp)
+                                tint = StitchCyan,
+                                modifier = Modifier.size(26.dp)
                             )
                         }
                     }
@@ -185,40 +208,41 @@ private fun InsightRowCard(
     badgeBg: Color,
     text: androidx.compose.ui.text.AnnotatedString
 ) {
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = SlateSurface1,
+        border = BorderStroke(1.dp, CyanBorderSubtle),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(48.dp)
-                    .background(badgeBg, CircleShape)
+                    .size(44.dp)
+                    .background(badgeBg, RoundedCornerShape(12.dp))
+                    .border(1.dp, iconTint.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     tint = iconTint,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
             Text(
                 text = text,
-                fontSize = 15.sp,
-                color = TextMediumLight,
+                fontSize = 13.sp,
+                color = TextMediumDark,
                 modifier = Modifier.weight(1f),
-                lineHeight = 22.sp
+                lineHeight = 19.sp
             )
         }
     }

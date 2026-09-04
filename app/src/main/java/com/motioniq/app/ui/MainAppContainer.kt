@@ -34,7 +34,8 @@ enum class SecondaryScreen {
     HEALTH_SYNC,
     NOTIFICATIONS,
     HELP,
-    PROFILE_SETUP
+    PROFILE_SETUP,
+    HISTORY
 }
 
 @Composable
@@ -207,12 +208,26 @@ fun MainAppContainer(repository: MotionRepository) {
                     onBackClick = { secondaryScreen = SecondaryScreen.NONE }
                 )
             }
+            SecondaryScreen.HISTORY -> {
+                HistoryScreen(
+                    activities = activities,
+                    onActivityClick = { activity ->
+                        selectedPastActivity = activity
+                        secondaryScreen = SecondaryScreen.NONE
+                    },
+                    onStartNewActivity = {
+                        secondaryScreen = SecondaryScreen.NONE
+                        isSelectingActivity = true
+                    },
+                    onBackClick = { secondaryScreen = SecondaryScreen.NONE }
+                )
+            }
             SecondaryScreen.NONE -> {}
         }
         return
     }
 
-    // 6. Main Scaffold with 5-Tab Bottom Navigation
+    // 6. Main Scaffold with 4-Tab Bottom Navigation (Stitch Design System)
     Scaffold(
         bottomBar = {
             MotionIQBottomBar(
@@ -251,23 +266,18 @@ fun MainAppContainer(repository: MotionRepository) {
                         }
                     )
                 }
-                AppTab.ACTIVITY -> {
-                    HistoryScreen(
-                        activities = activities,
-                        onActivityClick = { activity -> selectedPastActivity = activity },
-                        onStartNewActivity = { isSelectingActivity = true }
-                    )
-                }
-                AppTab.STATS -> {
+                AppTab.ANALYTICS -> {
                     StatsScreen(
                         activities = activities,
                         weeklySteps = repository.getWeeklySteps(),
                         weeklyTotal = repository.getWeeklyTotalSteps(),
                         averageDaily = repository.getAverageDailySteps(),
-                        bestDay = repository.getBestDay()
+                        bestDay = repository.getBestDay(),
+                        onActivityClick = { activity -> selectedPastActivity = activity },
+                        onViewAllActivities = { secondaryScreen = SecondaryScreen.HISTORY }
                     )
                 }
-                AppTab.PROFILE -> {
+                AppTab.SETTINGS -> {
                     ProfileScreen(
                         profile = profile,
                         isHealthConnectSyncEnabled = repository.healthConnect.isSyncEnabled,

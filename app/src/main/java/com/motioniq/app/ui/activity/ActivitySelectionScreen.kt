@@ -1,18 +1,23 @@
 package com.motioniq.app.ui.activity
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -24,6 +29,7 @@ import com.motioniq.app.theme.*
 private data class ActivityMeta(
     val type: ActivityType,
     val subtitle: String,
+    val telemetryTag: String,
     val icon: ImageVector,
     val tileBackground: Color,
     val iconTint: Color
@@ -31,46 +37,52 @@ private data class ActivityMeta(
 
 private val activitiesMeta = listOf(
     ActivityMeta(
-        type = ActivityType.WALKING,
-        subtitle = "Great for daily movement",
-        icon = Icons.Default.DirectionsWalk,
-        tileBackground = Color(0xFFE0F2FE),
-        iconTint = Color(0xFF0284C7)
+        type = ActivityType.RUNNING,
+        subtitle = "Cadence, flight time & impact vector",
+        telemetryTag = "120Hz IMU + GNSS",
+        icon = Icons.Default.DirectionsRun,
+        tileBackground = StitchTeal.copy(alpha = 0.5f),
+        iconTint = StitchCyan
     ),
     ActivityMeta(
-        type = ActivityType.RUNNING,
-        subtitle = "Track your runs and improve",
-        icon = Icons.Default.DirectionsRun,
-        tileBackground = Color(0xFFFEF3C7),
-        iconTint = Color(0xFFD97706)
+        type = ActivityType.WALKING,
+        subtitle = "Equilibrium flow & bilateral symmetry",
+        telemetryTag = "Step Engine Active",
+        icon = Icons.Default.DirectionsWalk,
+        tileBackground = KineticEmerald.copy(alpha = 0.2f),
+        iconTint = KineticEmerald
     ),
     ActivityMeta(
         type = ActivityType.CYCLING,
-        subtitle = "Explore farther",
+        subtitle = "Vector wattage & velocity curve",
+        telemetryTag = "Cadence Sync",
         icon = Icons.Default.DirectionsBike,
-        tileBackground = Color(0xFFDCFCE7),
-        iconTint = Color(0xFF16A34A)
+        tileBackground = StitchDarkCyan,
+        iconTint = StitchCyan
     ),
     ActivityMeta(
         type = ActivityType.SPORTS,
-        subtitle = "Football, basketball and more",
+        subtitle = "Lateral agility & burst acceleration",
+        telemetryTag = "Kinetic Load",
         icon = Icons.Default.SportsBasketball,
-        tileBackground = Color(0xFFFEE2E2),
-        iconTint = Color(0xFFDC2626)
+        tileBackground = PulseCoral.copy(alpha = 0.2f),
+        iconTint = PulseCoral
     ),
     ActivityMeta(
         type = ActivityType.JUMP,
-        subtitle = "Track your jumps",
+        subtitle = "Vertical takeoff & ground reaction",
+        telemetryTag = "Impulse Telemetry",
         icon = Icons.Default.FitnessCenter,
-        tileBackground = Color(0xFFF3E8FF),
-        iconTint = Color(0xFF9333EA)
+        tileBackground = VelocityPurple.copy(alpha = 0.2f),
+        iconTint = VelocityPurple
     ),
     ActivityMeta(
         type = ActivityType.SWIMMING,
-        subtitle = "Keep moving in the water",
+        subtitle = "Stroke rate & propulsion efficiency",
+        telemetryTag = "Hydro Dynamic",
         icon = Icons.Default.Pool,
-        tileBackground = Color(0xFFE0F2FE),
-        iconTint = Color(0xFF0284C7)
+        tileBackground = StitchTeal.copy(alpha = 0.4f),
+        iconTint = StitchCyan
     )
 )
 
@@ -81,21 +93,56 @@ fun ActivitySelectionScreen(
     onBackClick: () -> Unit
 ) {
     Scaffold(
-        containerColor = BackgroundLight,
+        containerColor = SlateGround,
         topBar = {
-            TopAppBar(
-                title = { },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(SlateGround)
+                    .statusBarsPadding()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onBackClick,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(SlateSurface1, CircleShape)
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = TextHighLight
+                            tint = Color.White
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = BackgroundLight)
-            )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Sensors,
+                            contentDescription = null,
+                            tint = StitchCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "TRACK TELEMETRY",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.5.sp,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.size(40.dp))
+                }
+            }
         }
     ) { padding ->
         LazyColumn(
@@ -106,32 +153,32 @@ fun ActivitySelectionScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(top = 8.dp, bottom = 40.dp)
         ) {
-            // Header (06_ActivitySelect.png)
             item {
-                Text(
-                    text = "Choose Activity",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextHighLight
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Choose Modality",
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Deploy high-frequency IMU and GNSS tracking filters.",
+                        fontSize = 14.sp,
+                        color = TextMediumDark
+                    )
+                }
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "What would you like to do?",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = TextMediumLight
-                )
-                Spacer(modifier = Modifier.height(10.dp))
             }
 
             // List of Activity Cards
             items(activitiesMeta) { item ->
-                Card(
+                Surface(
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                    color = SlateSurface1,
+                    border = BorderStroke(1.dp, CyanBorderSubtle),
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable { onSelectActivity(item.type) }
                 ) {
                     Row(
@@ -140,43 +187,60 @@ fun ActivitySelectionScreen(
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Colored square icon container
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
-                                .size(56.dp)
-                                .background(item.tileBackground, shape = RoundedCornerShape(16.dp))
+                                .size(52.dp)
+                                .background(item.tileBackground, shape = RoundedCornerShape(14.dp))
+                                .border(1.dp, item.iconTint.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
                         ) {
                             Icon(
                                 imageVector = item.icon,
                                 contentDescription = item.type.displayName,
                                 tint = item.iconTint,
-                                modifier = Modifier.size(28.dp)
+                                modifier = Modifier.size(26.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(16.dp))
+                        Spacer(modifier = Modifier.width(14.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = item.type.displayName,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextHighLight
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = item.type.displayName,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .background(SlateSurface2, RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = item.telemetryTag,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = item.iconTint
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(3.dp))
                             Text(
                                 text = item.subtitle,
-                                fontSize = 13.sp,
-                                color = TextMediumLight
+                                fontSize = 12.sp,
+                                color = TextMediumDark
                             )
                         }
 
                         Icon(
-                            imageVector = Icons.Default.ChevronRight,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                             contentDescription = null,
-                            tint = Color(0xFF94A3B8),
-                            modifier = Modifier.size(22.dp)
+                            tint = StitchCyan,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }

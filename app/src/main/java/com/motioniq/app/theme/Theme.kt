@@ -13,38 +13,38 @@ import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme =
   darkColorScheme(
-    primary = KineticGreen,
-    onPrimary = BrandNavy,
-    primaryContainer = SurfaceDark2,
-    onPrimaryContainer = KineticGreen,
-    secondary = ElectricBlue,
-    onSecondary = BrandNavy,
-    secondaryContainer = DeepIndigo.copy(alpha = 0.3f),
-    onSecondaryContainer = ElectricBlue,
-    tertiary = PulseOrange,
+    primary = StitchCyan,
+    onPrimary = StitchDarkCyan,
+    primaryContainer = StitchTeal.copy(alpha = 0.35f),
+    onPrimaryContainer = StitchCyan,
+    secondary = StitchTeal,
+    onSecondary = Color.White,
+    secondaryContainer = SlateSurface2,
+    onSecondaryContainer = StitchCyan,
+    tertiary = PulseCoral,
     onTertiary = Color.White,
-    background = BrandNavy,
+    background = SlateGround,
     onBackground = TextHighDark,
-    surface = SurfaceDark1,
+    surface = SlateSurface1,
     onSurface = TextHighDark,
-    surfaceVariant = CardDarkElevated,
+    surfaceVariant = SlateSurface2,
     onSurfaceVariant = TextMediumDark,
-    outline = TextLowDark,
+    outline = CyanBorderSubtle,
     error = Color(0xFFEF4444),
     onError = Color.White
   )
 
 private val LightColorScheme =
   lightColorScheme(
-    primary = BrandNavy,
+    primary = StitchCyan,
     onPrimary = Color.White,
-    primaryContainer = SoftTileBlue,
-    onPrimaryContainer = BrandNavy,
-    secondary = ElectricBlue,
+    primaryContainer = SoftTileCyan,
+    onPrimaryContainer = StitchDarkCyan,
+    secondary = StitchTeal,
     onSecondary = Color.White,
-    secondaryContainer = SoftTileCyan,
-    onSecondaryContainer = TealEnergy,
-    tertiary = PulseOrange,
+    secondaryContainer = SoftTileBlue,
+    onSecondaryContainer = StitchTeal,
+    tertiary = PulseCoral,
     onTertiary = Color.White,
     background = BackgroundLight,
     onBackground = TextHighLight,
@@ -52,7 +52,7 @@ private val LightColorScheme =
     onSurface = TextHighLight,
     surfaceVariant = CardLightElevated,
     onSurfaceVariant = TextMediumLight,
-    outline = TextLowLight,
+    outline = Color(0xFFE2E8F0),
     error = Color(0xFFEF4444),
     onError = Color.White
   )
@@ -60,7 +60,7 @@ private val LightColorScheme =
 @Composable
 fun MOTIONIQTheme(
   darkTheme: Boolean = true,
-  // MOTIONIQ uses its own signature athletic kinetic palette
+  // MOTIONIQ uses its signature technical kinesthetics palette from Stitch
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
 ) {

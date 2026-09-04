@@ -1,6 +1,8 @@
 package com.motioniq.app.ui.activity
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -10,11 +12,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -33,7 +37,8 @@ import java.util.Locale
 fun HistoryScreen(
     activities: List<MovementActivity>,
     onActivityClick: (MovementActivity) -> Unit,
-    onStartNewActivity: () -> Unit
+    onStartNewActivity: () -> Unit,
+    onBackClick: (() -> Unit)? = null
 ) {
     var selectedFilter by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
@@ -58,27 +63,45 @@ fun HistoryScreen(
     val currentMonthYear = SimpleDateFormat("MMMM yyyy", Locale.US).format(Date())
 
     Scaffold(
-        containerColor = BackgroundLight,
+        containerColor = SlateGround,
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    if (onBackClick != null) {
+                        IconButton(
+                            onClick = onBackClick,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(SlateSurface1, CircleShape)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White
+                            )
+                        }
+                    }
+                },
                 title = {
                     if (isSearching) {
                         TextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search activities...") },
+                            placeholder = { Text("Search sessions...", color = TextLowDark) },
                             singleLine = true,
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
                             )
                         )
                     } else {
                         Text(
-                            text = "Activity History",
-                            fontSize = 24.sp,
+                            text = "Telemetry History",
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextHighLight
+                            color = Color.White
                         )
                     }
                 },
@@ -87,23 +110,23 @@ fun HistoryScreen(
                         Icon(
                             imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
                             contentDescription = "Search",
-                            tint = TextHighLight
+                            tint = StitchCyan
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = BackgroundLight)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = SlateGround)
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onStartNewActivity,
-                containerColor = BrandNavy,
-                contentColor = Color.White,
+                containerColor = StitchCyan,
+                contentColor = SlateGround,
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Start Activity")
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("New Workout", fontWeight = FontWeight.Bold)
+                Text("Record Session", fontWeight = FontWeight.Bold)
             }
         }
     ) { padding ->
@@ -124,7 +147,7 @@ fun HistoryScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(top = 8.dp, bottom = 90.dp)
             ) {
-                // Filter Chips (09_History.png)
+                // Filter Chips
                 item {
                     Row(
                         modifier = Modifier
@@ -134,45 +157,41 @@ fun HistoryScreen(
                     ) {
                         filterOptions.forEach { filter ->
                             val isSelected = selectedFilter == filter
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { selectedFilter = filter },
-                                label = {
-                                    Text(
-                                        text = filter,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize = 14.sp
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(if (isSelected) StitchCyan else SlateSurface1)
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) StitchCyan else SlateSurface2,
+                                        RoundedCornerShape(20.dp)
                                     )
-                                },
-                                shape = CircleShape,
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = SoftTileBlue,
-                                    selectedLabelColor = BrandNavy,
-                                    containerColor = Color.White,
-                                    labelColor = TextMediumLight
-                                ),
-                                border = FilterChipDefaults.filterChipBorder(
-                                    enabled = true,
-                                    selected = isSelected,
-                                    borderColor = if (isSelected) ElectricBlue else Color(0xFFE2E8F0)
+                                    .clickable { selectedFilter = filter }
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = filter,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 13.sp,
+                                    color = if (isSelected) SlateGround else TextMediumDark
                                 )
-                            )
+                            }
                         }
                     }
                 }
 
-                // Month Section Header (09_History.png)
+                // Month Section Header
                 item {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = currentMonthYear,
-                        fontSize = 17.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextHighLight
+                        color = StitchCyan
                     )
                 }
 
-                // Activity Cards List (09_History.png)
+                // Activity Cards List
                 if (filteredActivities.isEmpty()) {
                     item {
                         Box(
@@ -183,7 +202,7 @@ fun HistoryScreen(
                         ) {
                             Text(
                                 text = "No workouts match your filter.",
-                                color = TextMediumLight,
+                                color = TextMediumDark,
                                 fontSize = 14.sp
                             )
                         }
@@ -197,16 +216,16 @@ fun HistoryScreen(
                         }
 
                         val (tileBg, iconTint, icon) = when (activity.type) {
-                            ActivityType.RUNNING -> Triple(SoftTileOrange, PulseOrange, Icons.Default.DirectionsRun)
-                            ActivityType.WALKING -> Triple(SoftTileGreen, KineticGreen, Icons.Default.DirectionsWalk)
-                            ActivityType.CYCLING -> Triple(SoftTileBlue, ElectricBlue, Icons.Default.DirectionsBike)
-                            else -> Triple(SoftTilePurple, AccentPurple, Icons.Default.FitnessCenter)
+                            ActivityType.RUNNING -> Triple(StitchTeal.copy(alpha = 0.5f), StitchCyan, Icons.Default.DirectionsRun)
+                            ActivityType.WALKING -> Triple(KineticEmerald.copy(alpha = 0.2f), KineticEmerald, Icons.Default.DirectionsWalk)
+                            ActivityType.CYCLING -> Triple(StitchDarkCyan, StitchCyan, Icons.Default.DirectionsBike)
+                            else -> Triple(SlateSurface2, TextMediumDark, Icons.Default.FitnessCenter)
                         }
 
-                        Card(
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = SlateSurface1,
+                            border = BorderStroke(1.dp, CyanBorderSubtle),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { onActivityClick(activity) }
@@ -220,8 +239,9 @@ fun HistoryScreen(
                                 Box(
                                     contentAlignment = Alignment.Center,
                                     modifier = Modifier
-                                        .size(48.dp)
-                                        .background(tileBg, shape = CircleShape)
+                                        .size(46.dp)
+                                        .background(tileBg, RoundedCornerShape(12.dp))
+                                        .border(1.dp, CyanBorderSubtle, RoundedCornerShape(12.dp))
                                 ) {
                                     Icon(
                                         imageVector = icon,
@@ -231,14 +251,14 @@ fun HistoryScreen(
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.width(16.dp))
+                                Spacer(modifier = Modifier.width(14.dp))
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = activity.type.displayName,
-                                        fontSize = 17.sp,
+                                        fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = TextHighLight
+                                        color = Color.White
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
@@ -248,20 +268,20 @@ fun HistoryScreen(
                                             GpsCalculator.formatDuration(activity.durationSeconds)
                                         ),
                                         fontSize = 13.sp,
-                                        color = TextMediumLight
+                                        color = StitchCyan
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = dateLabel,
-                                        fontSize = 12.sp,
-                                        color = TextLowLight
+                                        fontSize = 11.sp,
+                                        color = TextLowDark
                                     )
                                 }
 
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = null,
-                                    tint = Color(0xFFCBD5E1),
+                                    tint = TextMediumDark,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }

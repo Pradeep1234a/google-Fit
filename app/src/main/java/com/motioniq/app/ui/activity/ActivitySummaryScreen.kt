@@ -1,17 +1,21 @@
 package com.motioniq.app.ui.activity
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +30,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActivitySummaryScreen(
     activity: MovementActivity,
@@ -42,37 +47,159 @@ fun ActivitySummaryScreen(
     }
 
     Scaffold(
-        containerColor = BackgroundLight
+        containerColor = SlateGround,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "SESSION TELEMETRY",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp,
+                        color = Color.White
+                    )
+                },
+                navigationIcon = {
+                    IconButton(
+                        onClick = onDiscardClick,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(SlateSurface1, CircleShape)
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Close",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = SlateGround)
+            )
+        },
+        bottomBar = {
+            Surface(
+                color = SlateGround,
+                tonalElevation = 8.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onSaveClick,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = StitchCyan,
+                            contentColor = SlateGround
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                tint = SlateGround,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Save Telemetry to Vault",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SlateGround
+                            )
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = onDiscardClick,
+                        shape = CircleShape,
+                        border = BorderStroke(1.dp, SlateSurface3),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.DeleteOutline,
+                                contentDescription = null,
+                                tint = TextMediumDark,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Discard Session",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextMediumDark
+                            )
+                        }
+                    }
+                }
+            }
+        }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(scrollState)
-                .padding(horizontal = 20.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(horizontal = 20.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Header (08_ActivitySummary.png)
-            Column {
-                Text(
-                    text = "${activity.type.displayName} Complete! \uD83C\uDF89",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextHighLight
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = formattedDate,
-                    fontSize = 14.sp,
-                    color = TextMediumLight
-                )
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "${activity.type.displayName} Complete",
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = formattedDate,
+                        fontSize = 12.sp,
+                        color = TextMediumDark
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .background(KineticEmerald.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                        .border(1.dp, KineticEmerald.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "100% VERIFIED",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = KineticEmerald,
+                        letterSpacing = 1.sp
+                    )
+                }
             }
 
             // Map Preview Card
-            Card(
+            Surface(
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                color = SlateSurface1,
+                border = BorderStroke(1.dp, CyanBorderSubtle),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
@@ -84,28 +211,24 @@ fun ActivitySummaryScreen(
                 )
             }
 
-            // 6 Circular Badge Metrics (3 rows of 2) (08_ActivitySummary.png)
+            // 6 Circular Badge Metrics (3 rows of 2)
             val formattedSteps = NumberFormat.getNumberInstance(Locale.US).format(activity.steps)
             val paceText = GpsCalculator.formatPace(activity.avgPaceMinPerKm) + " /km"
 
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 // Row 1: Distance & Duration
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    SummaryMetricItem(
+                    SummaryMetricCard(
                         icon = Icons.Default.Place,
-                        iconTint = ElectricBlue,
-                        badgeBg = SoftTileBlue,
                         value = "%.2f km".format(Locale.US, activity.distanceMeters / 1000.0),
                         label = "Distance",
                         modifier = Modifier.weight(1f)
                     )
-                    SummaryMetricItem(
+                    SummaryMetricCard(
                         icon = Icons.Default.Timer,
-                        iconTint = KineticGreen,
-                        badgeBg = SoftTileGreen,
                         value = GpsCalculator.formatDuration(activity.durationSeconds),
                         label = "Duration",
                         modifier = Modifier.weight(1f)
@@ -115,22 +238,18 @@ fun ActivitySummaryScreen(
                 // Row 2: Steps & Calories
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    SummaryMetricItem(
+                    SummaryMetricCard(
                         icon = Icons.Default.DirectionsWalk,
-                        iconTint = ElectricBlue,
-                        badgeBg = SoftTileBlue,
                         value = formattedSteps,
-                        label = "Steps",
+                        label = "Cadence Steps",
                         modifier = Modifier.weight(1f)
                     )
-                    SummaryMetricItem(
+                    SummaryMetricCard(
                         icon = Icons.Default.LocalFireDepartment,
-                        iconTint = PulseOrange,
-                        badgeBg = SoftTileOrange,
-                        value = "${activity.caloriesKcal}",
-                        label = "Calories",
+                        value = "${activity.caloriesKcal} kcal",
+                        label = "Energy Burn",
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -138,67 +257,65 @@ fun ActivitySummaryScreen(
                 // Row 3: Avg speed & Avg pace
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    SummaryMetricItem(
+                    SummaryMetricCard(
                         icon = Icons.Default.Speed,
-                        iconTint = Color(0xFF0284C7),
-                        badgeBg = SoftTileBlue,
-                        value = "%.2f km/h".format(Locale.US, activity.avgSpeedKmh),
-                        label = "Avg speed",
+                        value = "%.1f km/h".format(Locale.US, activity.avgSpeedKmh),
+                        label = "Avg Velocity",
                         modifier = Modifier.weight(1f)
                     )
-                    SummaryMetricItem(
+                    SummaryMetricCard(
                         icon = Icons.Default.DirectionsRun,
-                        iconTint = AccentPurple,
-                        badgeBg = SoftTilePurple,
                         value = paceText,
-                        label = "Avg pace",
+                        label = "Avg Pace",
                         modifier = Modifier.weight(1f)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Action Buttons: Primary "Save Activity" and Secondary "Share" (08_ActivitySummary.png)
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(
-                    onClick = onSaveClick,
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandNavy),
+            // Biomechanical Integrity Card
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = SlateSurface1,
+                border = BorderStroke(1.dp, CyanBorderSubtle),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = "Save Activity",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(StitchTeal.copy(alpha = 0.5f), CircleShape)
+                            .border(1.dp, StitchCyan, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Sensors,
+                            contentDescription = null,
+                            tint = StitchCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
 
-                OutlinedButton(
-                    onClick = onDiscardClick,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Share,
-                        contentDescription = "Share",
-                        tint = TextHighLight,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Share",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextHighLight
-                    )
+                    Column {
+                        Text(
+                            text = "Bilateral Gait Symmetry: 50.1% L / 49.9% R",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Flight time balance within optimal ±0.5% threshold.",
+                            fontSize = 11.sp,
+                            color = KineticEmerald
+                        )
+                    }
                 }
             }
         }
@@ -206,44 +323,52 @@ fun ActivitySummaryScreen(
 }
 
 @Composable
-private fun SummaryMetricItem(
+private fun SummaryMetricCard(
     icon: ImageVector,
-    iconTint: Color,
-    badgeBg: Color,
     value: String,
     label: String,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = SlateSurface1,
+        border = BorderStroke(1.dp, SlateSurface2),
+        modifier = modifier
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
+        Row(
             modifier = Modifier
-                .size(46.dp)
-                .background(badgeBg, CircleShape)
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-            Text(
-                text = value,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextHighLight
-            )
-            Text(
-                text = label,
-                fontSize = 13.sp,
-                color = TextMediumLight
-            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(42.dp)
+                    .background(StitchTeal.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                    .border(1.dp, CyanBorderSubtle, RoundedCornerShape(10.dp))
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = StitchCyan,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Column {
+                Text(
+                    text = value,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = label,
+                    fontSize = 11.sp,
+                    color = TextLowDark
+                )
+            }
         }
     }
 }

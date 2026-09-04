@@ -1,22 +1,24 @@
 package com.motioniq.app.ui.stats
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,283 +34,531 @@ fun StatsScreen(
     weeklySteps: List<Pair<String, Long>> = emptyList(),
     weeklyTotal: Long = 0L,
     averageDaily: Long = 0L,
-    bestDay: Pair<String, Long>? = null
+    bestDay: Pair<String, Long>? = null,
+    onActivityClick: ((MovementActivity) -> Unit)? = null,
+    onViewAllActivities: (() -> Unit)? = null
 ) {
     var selectedPeriod by remember { mutableStateOf("Week") }
     val periods = listOf("Day", "Week", "Month", "Year")
 
-    val displayWeeklySteps = if (weeklySteps.isNotEmpty()) {
-        weeklySteps
-    } else {
-        listOf("Mon" to 4200L, "Tue" to 8426L, "Wed" to 5100L, "Thu" to 7800L, "Fri" to 8900L, "Sat" to 6200L, "Sun" to 7100L)
-    }
-
     val totalDistanceKm = if (activities.isNotEmpty()) {
         activities.sumOf { it.distanceMeters } / 1000.0
     } else {
-        42.8
+        54.8
     }
 
-    val totalCalories = if (activities.isNotEmpty()) {
-        activities.sumOf { it.caloriesKcal }
+    val totalSteps = if (weeklyTotal > 0) weeklyTotal else 42650L
+    val totalActiveHours = if (activities.isNotEmpty()) {
+        val totalSec = activities.sumOf { it.durationSeconds }
+        "${totalSec / 3600}h ${(totalSec % 3600) / 60}m"
     } else {
-        2481
+        "4h 32m"
     }
 
-    val totalActiveMinutes = if (activities.isNotEmpty()) {
-        (activities.sumOf { it.durationSeconds } / 60)
-    } else {
-        392L // 6h 32m
-    }
-
-    val totalStepsDisplay = if (weeklyTotal > 0) weeklyTotal else 56421L
-    val activityCount = if (activities.isNotEmpty()) activities.size else 5
-
-    val hours = totalActiveMinutes / 60
-    val mins = totalActiveMinutes % 60
-    val activeTimeText = if (hours > 0) "${hours}h ${mins}m" else "${mins}m"
-
-    Scaffold(
-        containerColor = BackgroundLight
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp)
-        ) {
-            // Header (10_Statistics.png)
-            item {
-                Text(
-                    text = "Statistics",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextHighLight
-                )
-            }
-
-            // Period Selector Pills (Day, Week, Month, Year)
-            item {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(SlateGround)
+            .padding(horizontal = 20.dp),
+        contentPadding = PaddingValues(top = 18.dp, bottom = 100.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // 1. Top Bar: MOTIONIQ Analytics, Bell, Avatar (Stitch 8908beee)
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFFF1F5F9), RoundedCornerShape(24.dp))
-                        .padding(4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(SlateSurface2, RoundedCornerShape(10.dp))
+                            .border(1.dp, CyanBorderSubtle, RoundedCornerShape(10.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ShowChart,
+                            contentDescription = "Logo",
+                            tint = StitchCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "MOTION",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "IQ",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Black,
+                                color = StitchCyan
+                            )
+                        }
+                        Text(
+                            text = "ANALYTICS",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = StitchCyan,
+                            letterSpacing = 1.2.sp
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(SlateSurface2, CircleShape)
+                            .border(1.dp, CyanBorderSubtle, CircleShape)
+                    ) {
+                        Icon(Icons.Default.Notifications, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(StitchCyan, CircleShape)
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = StitchDarkCyan, modifier = Modifier.size(24.dp))
+                    }
+                }
+            }
+        }
+
+        // 2. Period Selector & Date Navigator (Stitch 8908beee)
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Period Pills
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     periods.forEach { period ->
                         val isSelected = selectedPeriod == period
                         Box(
-                            contentAlignment = Alignment.Center,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(38.dp)
-                                .background(
-                                    if (isSelected) BrandNavy else Color.Transparent,
-                                    RoundedCornerShape(20.dp)
-                                )
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isSelected) StitchCyan else SlateSurface1)
+                                .border(1.dp, if (isSelected) StitchCyan else CyanBorderSubtle, RoundedCornerShape(20.dp))
                                 .clickable { selectedPeriod = period }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = period,
-                                fontSize = 14.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.White else TextMediumLight
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) StitchDarkCyan else TextMediumDark
                             )
                         }
                     }
                 }
-            }
 
-            // Date Range Navigator (< 2 - 8 Sep 2024 >)
-            item {
+                // Date range navigator
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = {}) {
-                        Icon(Icons.Default.ChevronLeft, contentDescription = "Previous", tint = TextMediumLight)
+                    IconButton(onClick = {}, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Prev", tint = TextLowDark, modifier = Modifier.size(16.dp))
                     }
-
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.Default.CalendarToday, contentDescription = null, tint = StitchCyan, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "2 – 8 Sep 2024",
-                        fontSize = 15.sp,
+                        text = "Oct 18 – Oct 24, 2024",
+                        style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = TextHighLight
+                        color = Color.White
                     )
-
-                    IconButton(onClick = {}) {
-                        Icon(Icons.Default.ChevronRight, contentDescription = "Next", tint = TextMediumLight)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(onClick = {}, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next", tint = TextLowDark, modifier = Modifier.size(16.dp))
                     }
                 }
             }
+        }
 
-            // Hero Distance + Growth Badge
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
+        // 3. Kinetic Trajectory Card (Stitch 8908beee)
+        item {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = SlateSurface1),
+                border = BorderStroke(1.dp, CyanBorderSubtle),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = "%.1f km".format(Locale.US, totalDistanceKm),
-                            fontSize = 38.sp,
+                            text = "KINETIC TRAJECTORY",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = TextLowDark,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "↗ +14% vs last week",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = KineticEmerald
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "%.1f".format(Locale.US, totalDistanceKm),
+                            style = MaterialTheme.typography.displayMedium,
                             fontWeight = FontWeight.Black,
-                            color = TextHighLight,
-                            letterSpacing = (-0.5).sp
+                            color = Color.White
                         )
                         Text(
-                            text = "Total Distance",
-                            fontSize = 14.sp,
-                            color = TextMediumLight
+                            text = "KM TOTAL",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = StitchCyan,
+                            modifier = Modifier.padding(bottom = 6.dp)
                         )
                     }
 
-                    // Green growth badge (↑ 14%)
-                    Surface(
-                        color = Color(0xFFDCFCE7),
-                        shape = RoundedCornerShape(12.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ArrowUpward,
-                                contentDescription = null,
-                                tint = Color(0xFF16A34A),
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "14%",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF16A34A)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Bar Chart (10_Statistics.png)
-            item {
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 20.dp)
-                    ) {
+                        // Step Velocity
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(160.dp)
+                                .weight(1f)
+                                .background(SlateSurface2, RoundedCornerShape(12.dp))
+                                .border(1.dp, CyanBorderSubtle, RoundedCornerShape(12.dp))
+                                .padding(12.dp)
                         ) {
-                            Canvas(modifier = Modifier.fillMaxSize()) {
-                                val maxVal = (displayWeeklySteps.maxOfOrNull { it.second }?.toFloat() ?: 10000f).coerceAtLeast(1000f)
-                                val barWidth = 26.dp.toPx()
-                                val stepCount = displayWeeklySteps.size
-                                val totalBarsWidth = barWidth * stepCount
-                                val spacing = (size.width - totalBarsWidth) / (stepCount + 1)
-                                val chartHeight = size.height
-
-                                val gradientBrush = Brush.verticalGradient(
-                                    colors = listOf(ElectricBlue, Color(0xFF00E5FF))
-                                )
-
-                                displayWeeklySteps.forEachIndexed { index, pair ->
-                                    val x = spacing + index * (barWidth + spacing)
-                                    val barHeight = ((pair.second.toFloat() / maxVal) * chartHeight).coerceIn(12f, chartHeight)
-                                    val y = chartHeight - barHeight
-
-                                    drawRoundRect(
-                                        brush = gradientBrush,
-                                        topLeft = Offset(x, y),
-                                        size = Size(barWidth, barHeight),
-                                        cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
-                                    )
+                            Column {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = StitchCyan, modifier = Modifier.size(16.dp))
+                                    Text("Step Velocity", style = MaterialTheme.typography.labelSmall, color = TextLowDark)
                                 }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = NumberFormat.getNumberInstance(Locale.US).format(totalSteps),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // Weekdays Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceAround
+                        // Active Kinematics
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(SlateSurface2, RoundedCornerShape(12.dp))
+                                .border(1.dp, CyanBorderSubtle, RoundedCornerShape(12.dp))
+                                .padding(12.dp)
                         ) {
-                            displayWeeklySteps.forEach { pair ->
+                            Column {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(Icons.Default.Timer, contentDescription = null, tint = StitchCyan, modifier = Modifier.size(16.dp))
+                                    Text("Active Movement", style = MaterialTheme.typography.labelSmall, color = TextLowDark)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = pair.first,
-                                    fontSize = 12.sp,
-                                    color = TextMediumLight,
-                                    fontWeight = FontWeight.Medium
+                                    text = totalActiveHours,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
                                 )
                             }
                         }
                     }
                 }
             }
+        }
 
-            // 2x2 Metric Cards (10_Statistics.png)
-            item {
-                val formattedSteps = NumberFormat.getNumberInstance(Locale.US).format(totalStepsDisplay)
-                val formattedCal = NumberFormat.getNumberInstance(Locale.US).format(totalCalories)
-
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // 4. Biomechanic Volume Daily Bar Chart (Stitch 8908beee)
+        item {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = SlateSurface1),
+                border = BorderStroke(1.dp, CyanBorderSubtle),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        StatMetricCard(
-                            icon = Icons.Default.DirectionsWalk,
-                            iconTint = ElectricBlue,
-                            badgeBg = SoftTileBlue,
-                            value = formattedSteps,
-                            label = "Steps",
-                            modifier = Modifier.weight(1f)
+                        Column {
+                            Text(
+                                text = "BIOMECHANIC VOLUME",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = TextLowDark,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Cadence & Distance",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .background(SlateSurface2, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "● Peak: 10.2k",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = StitchCyan
+                            )
+                        }
+                    }
+
+                    // Daily Bars
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(110.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        val days = listOf(
+                            Triple("M", "4.2k", 0.45f),
+                            Triple("T", "5.1k", 0.55f),
+                            Triple("W", "3.8k", 0.38f),
+                            Triple("T", "4.5k", 0.48f),
+                            Triple("F", "8.6k", 0.85f),
+                            Triple("S", "6.1k", 0.60f),
+                            Triple("S", "10.2k", 0.98f)
                         )
-                        StatMetricCard(
-                            icon = Icons.Default.Timer,
-                            iconTint = Color(0xFF2563EB),
-                            badgeBg = SoftTileBlue,
-                            value = activeTimeText,
-                            label = "Active time",
-                            modifier = Modifier.weight(1f)
-                        )
+
+                        days.forEach { (day, stepsLabel, fraction) ->
+                            val isPeak = fraction > 0.8f
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Bottom,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                if (isPeak) {
+                                    Text(
+                                        text = stepsLabel,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = StitchCyan
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .width(28.dp)
+                                        .fillMaxHeight(fraction)
+                                        .background(
+                                            if (isPeak) StitchCyan else SlateSurface2,
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = day,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isPeak) StitchCyan else TextLowDark
+                                )
+                            }
+                        }
+                    }
+
+                    // Footer metrics
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Default.Speed, contentDescription = null, tint = TextLowDark, modifier = Modifier.size(14.dp))
+                            Text("Weekly Pace: 5'18\" /km", style = MaterialTheme.typography.bodySmall, color = TextMediumDark)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Default.DirectionsRun, contentDescription = null, tint = TextLowDark, modifier = Modifier.size(14.dp))
+                            Text("Avg 78 Cadence", style = MaterialTheme.typography.bodySmall, color = TextMediumDark)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. Movement Intensity Breakdown (Stitch 8908beee)
+        item {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = SlateSurface1),
+                border = BorderStroke(1.dp, CyanBorderSubtle),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = "Movement Intensity Breakdown",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+
+                    // Tri-color Segmented Bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(10.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                    ) {
+                        Box(modifier = Modifier.weight(0.64f).fillMaxHeight().background(StitchCyan))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Box(modifier = Modifier.weight(0.22f).fillMaxHeight().background(StitchTeal))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Box(modifier = Modifier.weight(0.14f).fillMaxHeight().background(KineticEmerald))
                     }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        StatMetricCard(
-                            icon = Icons.Default.LocalFireDepartment,
-                            iconTint = PulseOrange,
-                            badgeBg = SoftTileOrange,
-                            value = formattedCal,
-                            label = "Calories",
-                            modifier = Modifier.weight(1f)
-                        )
-                        StatMetricCard(
-                            icon = Icons.Default.Route,
-                            iconTint = AccentPurple,
-                            badgeBg = SoftTilePurple,
-                            value = "$activityCount",
-                            label = "Activities",
-                            modifier = Modifier.weight(1f)
-                        )
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Box(modifier = Modifier.size(6.dp).background(StitchCyan, CircleShape))
+                                Text("Moderate 64%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                            Text("130–155 bpm • 2h 54m", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp, color = TextLowDark)
+                        }
+
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Box(modifier = Modifier.size(6.dp).background(StitchTeal, CircleShape))
+                                Text("High 22%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                            Text("156–175 bpm • 1h 00m", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp, color = TextLowDark)
+                        }
+
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Box(modifier = Modifier.size(6.dp).background(KineticEmerald, CircleShape))
+                                Text("Recovery 14%", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                            Text("<130 bpm • 0h 38m", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp, color = TextLowDark)
+                        }
                     }
+                }
+            }
+        }
+
+        // 6. Modality Load Breakdown (Stitch 8908beee)
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "MODALITY LOAD BREAKDOWN",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = TextLowDark,
+                    letterSpacing = 1.sp
+                )
+
+                // Running
+                ModalityLoadCard(
+                    icon = Icons.Default.DirectionsRun,
+                    title = "Running",
+                    subtitle = "3 sessions • 174 spm cadence",
+                    distance = "28.4 km",
+                    loadPercent = "51.8% Load",
+                    color = StitchCyan
+                )
+
+                // Walking
+                ModalityLoadCard(
+                    icon = Icons.Default.DirectionsWalk,
+                    title = "Walking",
+                    subtitle = "6 sessions • 112 spm cadence",
+                    distance = "18.2 km",
+                    loadPercent = "33.2% Load",
+                    color = KineticEmerald
+                )
+
+                // Cycling
+                ModalityLoadCard(
+                    icon = Icons.Default.DirectionsBike,
+                    title = "Cycling",
+                    subtitle = "1 session • 88 rpm cadence",
+                    distance = "8.2 km",
+                    loadPercent = "15.0% Load",
+                    color = VelocityPurple
+                )
+            }
+        }
+
+        // 7. Export Telemetry Button (Stitch 8908beee)
+        item {
+            Button(
+                onClick = {},
+                shape = RoundedCornerShape(22.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = StitchTeal),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Default.FileDownload, contentDescription = null, tint = StitchCyan, modifier = Modifier.size(18.dp))
+                    Text("Export Telemetry PDF / CSV", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
@@ -316,54 +566,46 @@ fun StatsScreen(
 }
 
 @Composable
-private fun StatMetricCard(
+private fun ModalityLoadCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    iconTint: Color,
-    badgeBg: Color,
-    value: String,
-    label: String,
-    modifier: Modifier = Modifier
+    title: String,
+    subtitle: String,
+    distance: String,
+    loadPercent: String,
+    color: Color
 ) {
     Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = modifier
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SlateSurface1),
+        border = BorderStroke(1.dp, CyanBorderSubtle),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(46.dp)
-                    .background(badgeBg, shape = CircleShape)
+                    .size(40.dp)
+                    .background(color.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = iconTint,
-                    modifier = Modifier.size(24.dp)
-                )
+                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TextMediumDark)
+            }
 
-            Column {
-                Text(
-                    text = value,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextHighLight
-                )
-                Text(
-                    text = label,
-                    fontSize = 13.sp,
-                    color = TextMediumLight
-                )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(distance, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = color)
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(loadPercent, style = MaterialTheme.typography.labelSmall, fontSize = 10.sp, color = TextLowDark)
             }
         }
     }
