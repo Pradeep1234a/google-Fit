@@ -1,4 +1,4 @@
-﻿package com.motioniq.app.core.step
+package com.motioniq.app.core.step
 
 import android.content.Context
 import android.hardware.Sensor
@@ -94,6 +94,24 @@ class SoftwarePedometer(context: Context) : SensorEventListener {
     private val recentPeakAmplitudes = ArrayDeque<Float>(ADAPTIVE_WINDOW_SIZE)
     private var dynamicThreshold = MIN_PEAK_THRESHOLD
 
+    // Diagnostics & Sensor Debugging
+    private var rawPeakCount = 0L
+    private var acceptedStepCount = 0L
+    private var rejectedIntervalCount = 0L
+    private var rejectedAmplitudeCount = 0L
+    private var lastPeakAmplitude = 0f
+
+    fun getDiagnostics(): Map<String, Any> = buildMap {
+        put("sw_raw_peaks", rawPeakCount)
+        put("sw_accepted_steps", acceptedStepCount)
+        put("sw_rejected_interval", rejectedIntervalCount)
+        put("sw_rejected_amplitude", rejectedAmplitudeCount)
+        put("sw_last_peak_amplitude", "%.2f".format(java.util.Locale.US, lastPeakAmplitude))
+        put("sw_dynamic_threshold", "%.2f".format(java.util.Locale.US, dynamicThreshold))
+        put("sw_gate_open", gateOpen)
+        put("sw_gate_candidates", gateCandidateCount)
+    }
+
     fun startTracking() {
         if (isListening || accelerometer == null) return
         isListening = true
@@ -150,7 +168,9 @@ class SoftwarePedometer(context: Context) : SensorEventListener {
         val peakDetected = wasRising && !isRising // was going up, now going down = peak
 
         if (peakDetected) {
+            rawPeakCount++
             val peakAmplitude = abs(smoothedMagnitude - GRAVITY)
+            lastPeakAmplitude = peakAmplitude
 
             // 4. Amplitude check (reject noise and extreme events)
             if (peakAmplitude >= dynamicThreshold && peakAmplitude <= MAX_PEAK_THRESHOLD) {
@@ -171,19 +191,23 @@ class SoftwarePedometer(context: Context) : SensorEventListener {
                                 // Gate opens! Count all gated candidates retroactively
                                 gateOpen = true
                                 _stepCount.value += GATE_STEPS_REQUIRED
+                                acceptedStepCount += GATE_STEPS_REQUIRED
                             }
                         } else {
                             // Cadence broken before gate opened — isolated motion, reset
                             gateCandidateCount = 1 // current peak starts new candidate window
+                            rejectedIntervalCount++
                         }
                     } else {
                         // Gate is open: count step if within cadence window
                         if (withinCadenceWindow) {
                             _stepCount.value += 1
+                            acceptedStepCount += 1
                         } else {
                             // Cadence broken: close gate, start new candidate window
                             gateOpen = false
                             gateCandidateCount = 1
+                            rejectedIntervalCount++
                         }
                     }
 
@@ -199,7 +223,11 @@ class SoftwarePedometer(context: Context) : SensorEventListener {
                         dynamicThreshold = (avgPeak * ADAPTIVE_THRESHOLD_FACTOR)
                             .coerceIn(MIN_PEAK_THRESHOLD, MAX_PEAK_THRESHOLD * 0.5f)
                     }
+                } else {
+                    rejectedIntervalCount++
                 }
+            } else {
+                rejectedAmplitudeCount++
             }
         }
 

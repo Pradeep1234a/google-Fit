@@ -33,8 +33,9 @@ class MotionRepository(private val context: Context) {
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    // --- Production Step Engine ---
+    // --- Production Step Engine & Health Connect ---
     val stepEngine = StepCountingEngine(context)
+    val healthConnect = com.motioniq.app.core.health.HealthConnectBridge(context)
 
     // User Profile & Goals
     private val _userProfile = MutableStateFlow(loadUserProfile())
@@ -356,6 +357,16 @@ class MotionRepository(private val context: Context) {
     fun completeOnboarding(profile: UserProfile) {
         updateUserProfile(profile.copy(isOnboarded = true))
     }
+
+    fun getWeeklySteps(): List<Pair<String, Long>> = stepEngine.getWeeklyDaysSteps()
+
+    fun getWeeklyTotalSteps(): Long = stepEngine.getWeeklyTotal()
+
+    fun getAverageDailySteps(): Long = stepEngine.getAverageDailySteps()
+
+    fun getBestDay(): Pair<String, Long>? = stepEngine.getBestDay()
+
+    fun getDiagnostics(): Map<String, Any> = stepEngine.getDiagnostics()
 
     fun resetData() {
         prefs.edit().clear().apply()

@@ -1,4 +1,4 @@
-﻿package com.motioniq.app.ui.profile
+package com.motioniq.app.ui.profile
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,9 +20,14 @@ import com.motioniq.app.model.UserProfile
 fun ProfileScreen(
     profile: UserProfile,
     hasHardwareStepSensor: Boolean,
+    diagnostics: Map<String, Any> = emptyMap(),
+    isHealthConnectAvailable: Boolean = false,
+    isHealthConnectSyncEnabled: Boolean = false,
+    onToggleHealthConnectSync: (Boolean) -> Unit = {},
     onUpdateProfile: (UserProfile) -> Unit,
     onResetData: () -> Unit
 ) {
+    var showDiagnostics by remember { mutableStateOf(false) }
     var showGoalDialog by remember { mutableStateOf(false) }
     var tempStepGoal by remember { mutableStateOf(profile.dailyStepGoal.toString()) }
     var tempDistGoal by remember { mutableStateOf(profile.dailyDistanceGoalKm.toString()) }
@@ -194,9 +199,73 @@ fun ProfileScreen(
                     HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
                     SensorStatusRow(
                         title = "Health Connect Platform",
-                        status = "Ready for Sync",
-                        isSuccess = true
+                        status = if (isHealthConnectAvailable) {
+                            if (isHealthConnectSyncEnabled) "Active (Sync Enabled)" else "Available (Sync Disabled)"
+                        } else "Not Installed",
+                        isSuccess = isHealthConnectAvailable
                     )
+                }
+            }
+        }
+
+        // Sensor Diagnostics & Debugging (PRD Section 19)
+        item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.BugReport, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Sensor Diagnostics & Telemetry",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        TextButton(onClick = { showDiagnostics = !showDiagnostics }) {
+                            Text(if (showDiagnostics) "Hide" else "Inspect")
+                        }
+                    }
+
+                    if (showDiagnostics) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
+                        if (diagnostics.isEmpty()) {
+                            Text("No telemetry data captured yet.", style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                diagnostics.forEach { (key, value) ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = key,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = value.toString(),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -148,12 +148,24 @@ fun MainAppContainer(repository: MotionRepository) {
                     isSelectingActivity = true
                 }
                 AppTab.STATS -> {
-                    StatsScreen(activities = activities)
+                    StatsScreen(
+                        activities = activities,
+                        weeklySteps = repository.getWeeklySteps(),
+                        weeklyTotal = repository.getWeeklyTotalSteps(),
+                        averageDaily = repository.getAverageDailySteps(),
+                        bestDay = repository.getBestDay()
+                    )
                 }
                 AppTab.PROFILE -> {
                     ProfileScreen(
                         profile = profile,
                         hasHardwareStepSensor = repository.hasHardwareStepSensor,
+                        diagnostics = repository.getDiagnostics(),
+                        isHealthConnectAvailable = repository.healthConnect.isAvailable,
+                        isHealthConnectSyncEnabled = repository.healthConnect.isSyncEnabled,
+                        onToggleHealthConnectSync = { enabled ->
+                            repository.healthConnect.isSyncEnabled = enabled
+                        },
                         onUpdateProfile = { updated -> repository.updateUserProfile(updated) },
                         onResetData = { repository.resetData() }
                     )

@@ -1,4 +1,4 @@
-﻿package com.motioniq.app.ui.stats
+package com.motioniq.app.ui.stats
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -25,21 +25,21 @@ import java.util.Locale
 
 @Composable
 fun StatsScreen(
-    activities: List<MovementActivity>
+    activities: List<MovementActivity>,
+    weeklySteps: List<Pair<String, Long>> = emptyList(),
+    weeklyTotal: Long = 0L,
+    averageDaily: Long = 0L,
+    bestDay: Pair<String, Long>? = null
 ) {
     var selectedTimeframe by remember { mutableIntStateOf(1) } // 0: Daily, 1: Weekly, 2: Monthly
     val timeframes = listOf("Daily", "Weekly", "Monthly")
 
-    // Weekly Mock Step Trend: Mon - Sun
-    val weeklySteps = listOf(
-        "Mon" to 6840L,
-        "Tue" to 8210L,
-        "Wed" to 7490L,
-        "Thu" to 9120L,
-        "Fri" to 8426L,
-        "Sat" to 11340L,
-        "Sun" to 5890L
-    )
+    // Use dynamic weekly step distribution from step engine persistence
+    val displayWeeklySteps = if (weeklySteps.isNotEmpty()) {
+        weeklySteps
+    } else {
+        listOf("Mon" to 0L, "Tue" to 0L, "Wed" to 0L, "Thu" to 0L, "Fri" to 0L, "Sat" to 0L, "Sun" to 0L)
+    }
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
@@ -111,8 +111,9 @@ fun StatsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 letterSpacing = 1.sp
                             )
+                            val formattedTotal = NumberFormat.getNumberInstance(Locale.US).format(weeklyTotal)
                             Text(
-                                text = "57,316 total steps",
+                                text = "$formattedTotal total steps",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -121,8 +122,9 @@ fun StatsScreen(
                             shape = RoundedCornerShape(8.dp),
                             color = MaterialTheme.colorScheme.primaryContainer
                         ) {
+                            val formattedAvg = NumberFormat.getNumberInstance(Locale.US).format(averageDaily)
                             Text(
-                                text = "Avg 8,188 / day",
+                                text = "Avg $formattedAvg / day",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -138,14 +140,14 @@ fun StatsScreen(
                             .height(160.dp)
                     ) {
                         Canvas(modifier = Modifier.fillMaxSize()) {
-                            val maxStep = 12000f
+                            val maxStep = (displayWeeklySteps.maxOfOrNull { it.second }?.toFloat() ?: 10000f).coerceAtLeast(1000f)
                             val barWidth = 24.dp.toPx()
-                            val spacing = (size.width - (barWidth * weeklySteps.size)) / (weeklySteps.size + 1)
+                            val spacing = (size.width - (barWidth * displayWeeklySteps.size)) / (displayWeeklySteps.size + 1)
                             val chartHeight = size.height - 25.dp.toPx()
 
-                            weeklySteps.forEachIndexed { index, pair ->
+                            displayWeeklySteps.forEachIndexed { index, pair ->
                                 val x = spacing + index * (barWidth + spacing)
-                                val barHeight = (pair.second / maxStep) * chartHeight
+                                val barHeight = if (maxStep > 0f) ((pair.second.toFloat() / maxStep) * chartHeight).coerceIn(0f, chartHeight) else 0f
                                 val y = chartHeight - barHeight
 
                                 // Background bar
@@ -157,12 +159,15 @@ fun StatsScreen(
                                 )
 
                                 // Filled active bar
-                                drawRoundRect(
-                                    color = if (pair.first == "Fri") primaryColor else primaryColor.copy(alpha = 0.65f),
-                                    topLeft = Offset(x, y),
-                                    size = Size(barWidth, barHeight),
-                                    cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
-                                )
+                                if (barHeight > 0f) {
+                                    val isLastDay = index == displayWeeklySteps.size - 1
+                                    drawRoundRect(
+                                        color = if (isLastDay) primaryColor else primaryColor.copy(alpha = 0.65f),
+                                        topLeft = Offset(x, y),
+                                        size = Size(barWidth, barHeight),
+                                        cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
+                                    )
+                                }
                             }
                         }
                     }
@@ -172,12 +177,13 @@ fun StatsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceAround
                     ) {
-                        weeklySteps.forEach {
+                        displayWeeklySteps.forEachIndexed { index, it ->
+                            val isLastDay = index == displayWeeklySteps.size - 1
                             Text(
                                 text = it.first,
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (it.first == "Fri") FontWeight.Bold else FontWeight.Normal,
-                                color = if (it.first == "Fri") primaryColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                fontWeight = if (isLastDay) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isLastDay) primaryColor else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -282,9 +288,13 @@ fun StatsScreen(
                     HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
                     RecordRow(title = "Longest Run", value = "5.2 km", date = "Sep 01")
                     HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
-                    RecordRow(title = "Most Steps in a Day", value = "14,210 steps", date = "Aug 22")
+                    val mostStepsLabel = if (bestDay != null && bestDay.second > 0L) {
+                        NumberFormat.getNumberInstance(Locale.US).format(bestDay.second) + " steps"
+                    } else "0 steps"
+                    val mostStepsDate = bestDay?.first ?: "Today"
+                    RecordRow(title = "Most Steps in a Day", value = mostStepsLabel, date = mostStepsDate)
                     HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
-                    RecordRow(title = "Longest Streak", value = "9 consecutive days", date = "Active")
+                    RecordRow(title = "Longest Streak", value = "Active Tracking", date = "Active")
                 }
             }
         }

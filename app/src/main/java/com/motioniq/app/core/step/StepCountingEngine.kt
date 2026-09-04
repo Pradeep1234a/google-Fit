@@ -381,6 +381,32 @@ class StepCountingEngine(private val context: Context) : SensorEventListener {
         return (history + today).maxByOrNull { it.second }
     }
 
+    /**
+     * Returns step counts for the last 7 days (including today)
+     * formatted with short weekday names (e.g. "Mon", "Tue", etc.)
+     * for direct use in analytics bar charts.
+     */
+    fun getWeeklyDaysSteps(): List<Pair<String, Long>> {
+        val dayFormat = java.text.SimpleDateFormat("EEE", java.util.Locale.US)
+        val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        val result = mutableListOf<Pair<String, Long>>()
+        val cal = java.util.Calendar.getInstance()
+
+        // Generate past 6 days + today in chronological order
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -6)
+        repeat(6) {
+            val dateStr = dateFormat.format(cal.time)
+            val dayName = dayFormat.format(cal.time)
+            val steps = persistence.getHistoricalDay(dateStr)
+            result.add(dayName to steps)
+            cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }
+        // Today
+        val todayName = dayFormat.format(java.util.Date())
+        result.add(todayName to _todaySteps.value)
+        return result
+    }
+
     /** Returns a diagnostic report for debugging */
     fun getDiagnostics(): Map<String, Any> = buildMap {
         putAll(capabilities.buildDiagnosticReport())
@@ -392,5 +418,8 @@ class StepCountingEngine(private val context: Context) : SensorEventListener {
         put("persisted_daily_steps", persistence.dailySteps)
         put("persisted_date", persistence.currentDate)
         put("is_tracking", isListening)
+        if (capabilities.hasAccelerometer) {
+            putAll(softwarePedometer.getDiagnostics())
+        }
     }
 }

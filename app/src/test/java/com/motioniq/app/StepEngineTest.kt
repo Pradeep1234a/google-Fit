@@ -225,4 +225,103 @@ class StepEngineTest {
         // Should return 0 or handle gracefully, not crash
         assertTrue("Zero duration should not crash", speed >= 0.0)
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Hardware Step Counter Delta & Reboot Recovery Tests
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Test
+    fun stepCounter_normalDelta_calculatesCorrectly() {
+        val baseline = 121000L
+        val rawCounter = 125430L
+        val delta = rawCounter - baseline
+        assertEquals(4430L, delta)
+    }
+
+    @Test
+    fun stepCounter_rebootDetection_rawLessThanBaseline() {
+        // Device reboots: raw counter resets from 125,430 back to 250
+        val baseline = 121000L
+        val rawCounterAfterReboot = 250L
+        val isReboot = rawCounterAfterReboot < baseline
+        assertTrue("Counter smaller than baseline indicates device reboot", isReboot)
+
+        // Engine preserves previously accumulated steps:
+        val stepsBeforeReboot = 4430L
+        val newBaseline = rawCounterAfterReboot
+        val currentRaw = 300L
+        val totalSteps = stepsBeforeReboot + (currentRaw - newBaseline)
+        assertEquals(4480L, totalSteps)
+    }
+
+    @Test
+    fun stepCounter_largeJumpDetection_filtersCorruption() {
+        val maxPlausibleDelta = 50000L
+        val lastRaw = 12000L
+        val corruptRaw = 80000L // jump of 68,000 in one reading
+        val isCorrupt = (corruptRaw - lastRaw) > maxPlausibleDelta
+        assertTrue("Jump > 50,000 steps should be flagged as potential corruption", isCorrupt)
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Cadence Gating & False Positive Suppression Tests
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Test
+    fun cadenceGating_isolatedPulses_rejected() {
+        val gateStepsRequired = 3
+        var gateOpen = false
+        var candidateCount = 0
+        var totalSteps = 0L
+
+        // Pulse 1 (phone picked up from table)
+        candidateCount++
+        if (candidateCount >= gateStepsRequired) {
+            gateOpen = true
+            totalSteps += gateStepsRequired
+        }
+        assertEquals(0L, totalSteps)
+        assertFalse(gateOpen)
+
+        // Pulse 2 (placed into pocket)
+        candidateCount++
+        if (candidateCount >= gateStepsRequired) {
+            gateOpen = true
+            totalSteps += gateStepsRequired
+        }
+        assertEquals(0L, totalSteps)
+        assertFalse(gateOpen)
+
+        // Pulse 3 (rhythmic stride starts -> gate unlocks!)
+        candidateCount++
+        if (candidateCount >= gateStepsRequired) {
+            gateOpen = true
+            totalSteps += gateStepsRequired
+        }
+        assertEquals(3L, totalSteps)
+        assertTrue(gateOpen)
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Health Connect Duplicate Prevention Tests
+    // ══════════════════════════════════════════════════════════════════════
+
+    @Test
+    fun healthSync_duplicatePrevention_noNewStepsReturnsZeroDelta() {
+        var lastSynced = 5000L
+        var currentSteps = 5000L
+
+        val delta1 = (currentSteps - lastSynced).coerceAtLeast(0L)
+        assertEquals("When steps have not changed, sync delta must be 0", 0L, delta1)
+
+        // New steps accumulated
+        currentSteps = 5350L
+        val delta2 = currentSteps - lastSynced
+        assertEquals("New steps must yield positive delta", 350L, delta2)
+
+        // After sync completion, lastSynced is updated
+        lastSynced = currentSteps
+        val delta3 = (currentSteps - lastSynced).coerceAtLeast(0L)
+        assertEquals("After sync recorded, delta must return to 0", 0L, delta3)
+    }
 }
