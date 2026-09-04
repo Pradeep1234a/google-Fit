@@ -1,33 +1,51 @@
-﻿package com.motioniq.app.core
+package com.motioniq.app.core
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.motioniq.app.core.step.DistanceEstimator
+import com.motioniq.app.core.step.StepCountingEngine
+import com.motioniq.app.core.step.StepSourceType
 import com.motioniq.app.model.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.math.roundToInt
 
+/**
+ * Central repository managing movement data, workout tracking, and user profile.
+ *
+ * Integrates the production [StepCountingEngine] for real sensor-based step
+ * counting. The engine handles all hardware/software sensor selection,
+ * daily baselines, persistence, reboot recovery, and midnight rollover.
+ *
+ * This repository:
+ * - Exposes todaySummary that automatically updates from real sensor data
+ * - Manages workout sessions with real step counting during active workouts
+ * - Persists user profile and goals
+ * - Provides distance/calorie estimates based on real step counts
+ */
 class MotionRepository(private val context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("motioniq_preferences", Context.MODE_PRIVATE)
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    val stepTracker = StepTracker(context)
+
+    // --- Production Step Engine ---
+    val stepEngine = StepCountingEngine(context)
 
     // User Profile & Goals
     private val _userProfile = MutableStateFlow(loadUserProfile())
     val userProfile: StateFlow<UserProfile> = _userProfile.asStateFlow()
 
-    // Today's Aggregate Summary
-    private val _todaySummary = MutableStateFlow(loadTodaySummary())
+    // Today's Aggregate Summary (driven by real sensor data)
+    private val _todaySummary = MutableStateFlow(DailySummary(getCurrentDateString()))
     val todaySummary: StateFlow<DailySummary> = _todaySummary.asStateFlow()
 
-    // Activity History
-    private val _activities = MutableStateFlow(loadInitialActivities())
+    // Activity History (completed workout sessions)
+    private val _activities = MutableStateFlow<List<MovementActivity>>(emptyList())
     val activities: StateFlow<List<MovementActivity>> = _activities.asStateFlow()
 
     // Active Workout Tracking State
@@ -132,10 +150,50 @@ class MotionRepository(private val context: Context) {
 
     private var workoutJob: Job? = null
     private var workoutStartTime = 0L
+    private var workoutStartSteps = 0L // engine step count at workout start
+
+    /** Backward compatibility for UI profile sensor check */
+    val hasHardwareStepSensor: Boolean
+        get() = stepEngine.capabilities.hasStepCounter || stepEngine.capabilities.hasStepDetector
 
     init {
-        stepTracker.startTracking()
+        // Start the production step engine
+        stepEngine.start()
+
+        // Observe real step count and update today's summary
+        scope.launch {
+            stepEngine.todaySteps.collect { realSteps ->
+                updateTodaySummaryFromEngine(realSteps)
+            }
+        }
     }
+
+    private fun updateTodaySummaryFromEngine(steps: Long) {
+        val profile = _userProfile.value
+        val distanceMeters = DistanceEstimator.estimateDistanceMeters(steps, profile.heightCm)
+        val calories = DistanceEstimator.estimateCalories(steps, profile.weightKg)
+        val activeMinutes = estimateActiveMinutes(steps)
+
+        _todaySummary.value = DailySummary(
+            date = getCurrentDateString(),
+            steps = steps,
+            distanceMeters = distanceMeters,
+            caloriesKcal = calories,
+            activeMinutes = activeMinutes,
+            activityCount = _activities.value.size
+        )
+    }
+
+    /**
+     * Estimate active minutes from step count.
+     * Assumes average walking cadence of ~100 steps/min.
+     */
+    private fun estimateActiveMinutes(steps: Long): Int {
+        if (steps <= 0) return 0
+        return (steps / 100).toInt().coerceAtLeast(1)
+    }
+
+    // ── Workout Tracking ──
 
     fun startWorkout(type: ActivityType) {
         _activeActivityType.value = type
@@ -149,11 +207,11 @@ class MotionRepository(private val context: Context) {
         _activeRoutePoints.value = emptyList()
         _completedActivity.value = null
         workoutStartTime = System.currentTimeMillis()
+        workoutStartSteps = stepEngine.todaySteps.value
 
-        // Base coordinate around downtown
+        // Starting position
         var currentLat = 12.9716
         var currentLng = 77.5946
-
         val initialPoint = RoutePoint(currentLat, currentLng, 920.0, 0f, workoutStartTime)
         _activeRoutePoints.value = listOf(initialPoint)
 
@@ -165,46 +223,40 @@ class MotionRepository(private val context: Context) {
                     _activeDurationSeconds.value += 1
                     val duration = _activeDurationSeconds.value
 
-                    // Increment realistic movement
-                    val speedFactor = when (type) {
-                        ActivityType.RUNNING -> 2.8 // ~10 km/h
-                        ActivityType.CYCLING -> 5.5 // ~20 km/h
-                        else -> 1.35 // ~5 km/h
-                    }
-                    val deltaDist = speedFactor + (Math.random() - 0.5) * 0.4
-                    _activeDistanceMeters.value += deltaDist
+                    // Get real steps from engine (delta since workout started)
+                    val currentEngineSteps = stepEngine.todaySteps.value
+                    val workoutSteps = (currentEngineSteps - workoutStartSteps).coerceAtLeast(0L)
+                    _activeSteps.value = workoutSteps
 
-                    val stepIncrement = when (type) {
-                        ActivityType.RUNNING -> if (duration % 2 == 0L) 3L else 2L
-                        ActivityType.WALKING -> if (duration % 2 == 0L) 2L else 1L
-                        else -> 0L
-                    }
-                    _activeSteps.value += stepIncrement
+                    // Calculate distance from real steps
+                    val profile = _userProfile.value
+                    val isRunning = type == ActivityType.RUNNING
+                    val distance = DistanceEstimator.estimateDistanceMeters(workoutSteps, profile.heightCm, isRunning)
+                    _activeDistanceMeters.value = distance
 
-                    // Update live GPS coordinates (curved path)
-                    if (type.isOutdoorGps && duration % 3 == 0L) {
-                        currentLat += (Math.random() - 0.48) * 0.00018
-                        currentLng += (Math.random() - 0.46) * 0.00022
+                    // Calculate speed and pace from real distance and time
+                    val currentSpeed = GpsCalculator.calculateSpeedKmh(distance, duration)
+                    _activeSpeedKmh.value = currentSpeed
+                    _activePaceMinPerKm.value = GpsCalculator.calculatePaceMinPerKm(distance, duration)
+
+                    // Calculate calories from real steps
+                    _activeCalories.value = DistanceEstimator.estimateCalories(workoutSteps, profile.weightKg, isRunning)
+
+                    // Update GPS coordinates for route canvas (simulated path based on distance)
+                    if (type.isOutdoorGps && duration % 3 == 0L && workoutSteps > 0) {
+                        val bearing = (duration % 360).toDouble() * Math.PI / 180.0
+                        val stepDistMeters = distance / workoutSteps.coerceAtLeast(1L)
+                        currentLat += Math.cos(bearing) * stepDistMeters * 0.000009
+                        currentLng += Math.sin(bearing) * stepDistMeters * 0.000009
                         val newPoint = RoutePoint(
                             latitude = currentLat,
                             longitude = currentLng,
                             altitudeMeters = 920.0 + (duration % 15),
-                            speedMps = speedFactor.toFloat(),
+                            speedMps = (currentSpeed / 3.6).toFloat(),
                             timestampMillis = System.currentTimeMillis()
                         )
                         _activeRoutePoints.value = _activeRoutePoints.value + newPoint
                     }
-
-                    val currentSpeed = GpsCalculator.calculateSpeedKmh(_activeDistanceMeters.value, duration)
-                    _activeSpeedKmh.value = currentSpeed
-                    _activePaceMinPerKm.value = GpsCalculator.calculatePaceMinPerKm(_activeDistanceMeters.value, duration)
-
-                    _activeCalories.value = CalorieCalculator.calculate(
-                        activityType = type,
-                        weightKg = _userProfile.value.weightKg,
-                        durationSeconds = duration,
-                        speedKmh = currentSpeed
-                    )
                 }
             }
         }
@@ -235,6 +287,20 @@ class MotionRepository(private val context: Context) {
         val speed = GpsCalculator.calculateSpeedKmh(dist, duration)
         val pace = GpsCalculator.calculatePaceMinPerKm(dist, duration)
 
+        val stepSource = when (stepEngine.activeSource.value) {
+            StepSourceType.HARDWARE_STEP_COUNTER -> StepSource.HARDWARE_SENSOR
+            StepSourceType.HARDWARE_STEP_DETECTOR -> StepSource.HARDWARE_STEP_DETECTOR
+            StepSourceType.SOFTWARE_ACCELEROMETER -> StepSource.SOFTWARE_PEDOMETER
+            StepSourceType.NONE -> StepSource.ESTIMATED
+        }
+
+        val confidence = when (stepEngine.activeSource.value) {
+            StepSourceType.HARDWARE_STEP_COUNTER -> ConfidenceLevel.HIGH
+            StepSourceType.HARDWARE_STEP_DETECTOR -> ConfidenceLevel.HIGH
+            StepSourceType.SOFTWARE_ACCELEROMETER -> ConfidenceLevel.MEDIUM
+            StepSourceType.NONE -> ConfidenceLevel.LOW
+        }
+
         val activity = MovementActivity(
             type = type,
             startTimeMillis = workoutStartTime,
@@ -245,10 +311,10 @@ class MotionRepository(private val context: Context) {
             caloriesKcal = cals,
             avgSpeedKmh = speed,
             avgPaceMinPerKm = pace,
-            startPlaceName = "Central Park Trailhead",
-            endPlaceName = "East Promenade",
-            confidenceLevel = ConfidenceLevel.HIGH,
-            stepSource = if (stepTracker.hasHardwareSensor) StepSource.HARDWARE_SENSOR else StepSource.ESTIMATED,
+            startPlaceName = "Start Point",
+            endPlaceName = "End Point",
+            confidenceLevel = confidence,
+            stepSource = stepSource,
             routePoints = _activeRoutePoints.value
         )
         _completedActivity.value = activity
@@ -258,27 +324,17 @@ class MotionRepository(private val context: Context) {
     fun saveWorkout(activity: MovementActivity) {
         val updatedList = listOf(activity) + _activities.value
         _activities.value = updatedList
-
-        // Update Today's Aggregate Summary
-        val currentSummary = _todaySummary.value
-        val newSummary = currentSummary.copy(
-            steps = currentSummary.steps + activity.steps,
-            distanceMeters = currentSummary.distanceMeters + activity.distanceMeters,
-            caloriesKcal = currentSummary.caloriesKcal + activity.caloriesKcal,
-            activeMinutes = currentSummary.activeMinutes + (activity.durationSeconds / 60).toInt().coerceAtLeast(1),
-            activityCount = currentSummary.activityCount + 1
-        )
-        _todaySummary.value = newSummary
-        saveTodaySummary(newSummary)
-
         _workoutState.value = WorkoutState.IDLE
         _completedActivity.value = null
+        // Summary is already driven by stepEngine.todaySteps
     }
 
     fun discardWorkout() {
         _workoutState.value = WorkoutState.IDLE
         _completedActivity.value = null
     }
+
+    // ── User Profile Management ──
 
     fun updateUserProfile(profile: UserProfile) {
         _userProfile.value = profile
@@ -293,6 +349,8 @@ class MotionRepository(private val context: Context) {
             .putInt("user_active_goal", profile.dailyActiveMinutesGoal)
             .putBoolean("user_onboarded", profile.isOnboarded)
             .apply()
+        // Recalculate today's summary with new profile data
+        updateTodaySummaryFromEngine(stepEngine.todaySteps.value)
     }
 
     fun completeOnboarding(profile: UserProfile) {
@@ -301,6 +359,7 @@ class MotionRepository(private val context: Context) {
 
     fun resetData() {
         prefs.edit().clear().apply()
+        stepEngine.persistence.clearAll()
         _todaySummary.value = DailySummary(getCurrentDateString())
         _activities.value = emptyList()
         _userProfile.value = UserProfile(isOnboarded = true)
@@ -308,105 +367,15 @@ class MotionRepository(private val context: Context) {
 
     private fun loadUserProfile(): UserProfile {
         return UserProfile(
-            name = prefs.getString("user_name", "Alex Rivera") ?: "Alex Rivera",
-            weightKg = prefs.getFloat("user_weight", 68.5f).toDouble(),
-            heightCm = prefs.getFloat("user_height", 176.0f).toDouble(),
-            age = prefs.getInt("user_age", 26),
+            name = prefs.getString("user_name", "") ?: "",
+            weightKg = prefs.getFloat("user_weight", 70.0f).toDouble(),
+            heightCm = prefs.getFloat("user_height", 175.0f).toDouble(),
+            age = prefs.getInt("user_age", 28),
             gender = prefs.getString("user_gender", "Not Specified") ?: "Not Specified",
             dailyStepGoal = prefs.getInt("user_step_goal", 10000),
-            dailyDistanceGoalKm = prefs.getFloat("user_dist_goal", 6.0f).toDouble(),
+            dailyDistanceGoalKm = prefs.getFloat("user_dist_goal", 5.0f).toDouble(),
             dailyActiveMinutesGoal = prefs.getInt("user_active_goal", 60),
-            isOnboarded = prefs.getBoolean("user_onboarded", true)
-        )
-    }
-
-    private fun loadTodaySummary(): DailySummary {
-        val today = getCurrentDateString()
-        val savedDate = prefs.getString("today_date", today) ?: today
-        if (savedDate != today) {
-            return DailySummary(today, steps = 4250, distanceMeters = 3120.0, caloriesKcal = 184, activeMinutes = 38, activityCount = 1)
-        }
-        return DailySummary(
-            date = today,
-            steps = prefs.getLong("today_steps", 8426L),
-            distanceMeters = prefs.getFloat("today_distance", 6200.0f).toDouble(),
-            caloriesKcal = prefs.getInt("today_calories", 342),
-            activeMinutes = prefs.getInt("today_active_min", 72),
-            activityCount = prefs.getInt("today_activity_count", 3)
-        )
-    }
-
-    private fun saveTodaySummary(summary: DailySummary) {
-        prefs.edit()
-            .putString("today_date", summary.date)
-            .putLong("today_steps", summary.steps)
-            .putFloat("today_distance", summary.distanceMeters.toFloat())
-            .putInt("today_calories", summary.caloriesKcal)
-            .putInt("today_active_min", summary.activeMinutes)
-            .putInt("today_activity_count", summary.activityCount)
-            .apply()
-    }
-
-    private fun loadInitialActivities(): List<MovementActivity> {
-        val now = System.currentTimeMillis()
-        val dummyRoute = listOf(
-            RoutePoint(12.9716, 77.5946),
-            RoutePoint(12.9725, 77.5958),
-            RoutePoint(12.9738, 77.5971),
-            RoutePoint(12.9752, 77.5985),
-            RoutePoint(12.9765, 77.6001),
-            RoutePoint(12.9778, 77.6015)
-        )
-
-        return listOf(
-            MovementActivity(
-                type = ActivityType.WALKING,
-                startTimeMillis = now - 7200000,
-                endTimeMillis = now - 3600000,
-                durationSeconds = 3501,
-                steps = 4120,
-                distanceMeters = 3100.0,
-                caloriesKcal = 168,
-                avgSpeedKmh = 4.8,
-                avgPaceMinPerKm = 12.5,
-                startPlaceName = "Home",
-                endPlaceName = "Cubbon Park",
-                confidenceLevel = ConfidenceLevel.HIGH,
-                stepSource = StepSource.HARDWARE_SENSOR,
-                routePoints = dummyRoute
-            ),
-            MovementActivity(
-                type = ActivityType.RUNNING,
-                startTimeMillis = now - 18000000,
-                endTimeMillis = now - 16200000,
-                durationSeconds = 1694,
-                steps = 3450,
-                distanceMeters = 2400.0,
-                caloriesKcal = 142,
-                avgSpeedKmh = 8.5,
-                avgPaceMinPerKm = 7.05,
-                startPlaceName = "Stadium Gate A",
-                endPlaceName = "Lake Perimeter",
-                confidenceLevel = ConfidenceLevel.HIGH,
-                stepSource = StepSource.HARDWARE_SENSOR,
-                routePoints = dummyRoute.reversed()
-            ),
-            MovementActivity(
-                type = ActivityType.WALKING,
-                startTimeMillis = now - 28800000,
-                endTimeMillis = now - 28200000,
-                durationSeconds = 600,
-                steps = 856,
-                distanceMeters = 700.0,
-                caloriesKcal = 32,
-                avgSpeedKmh = 4.2,
-                avgPaceMinPerKm = 14.2,
-                startPlaceName = "Coffee House",
-                endPlaceName = "Metro Station",
-                confidenceLevel = ConfidenceLevel.MEDIUM,
-                stepSource = StepSource.HARDWARE_SENSOR,
-                routePoints = dummyRoute.take(3)
-            )
+            isOnboarded = prefs.getBoolean("user_onboarded", false)
         )
     }
 

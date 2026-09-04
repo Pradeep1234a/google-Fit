@@ -36,6 +36,7 @@ fun MainAppContainer(repository: MotionRepository) {
     val paceMinPerKm by repository.activePaceMinPerKm.collectAsStateWithLifecycle()
     val routePoints by repository.activeRoutePoints.collectAsStateWithLifecycle()
     val completedActivity by repository.completedActivity.collectAsStateWithLifecycle()
+    val activeSource by repository.stepEngine.activeSource.collectAsStateWithLifecycle()
 
     var currentTab by remember { mutableStateOf(AppTab.HOME) }
     var isSelectingActivity by remember { mutableStateOf(false) }
@@ -128,6 +129,7 @@ fun MainAppContainer(repository: MotionRepository) {
                         summary = todaySummary,
                         profile = profile,
                         recentActivities = activities,
+                        activeSource = activeSource,
                         onStartActivityClick = { isSelectingActivity = true },
                         onExploreClick = { currentTab = AppTab.EXPLORE },
                         onActivityClick = { activity -> selectedPastActivity = activity }
@@ -151,7 +153,7 @@ fun MainAppContainer(repository: MotionRepository) {
                 AppTab.PROFILE -> {
                     ProfileScreen(
                         profile = profile,
-                        hasHardwareStepSensor = repository.stepTracker.hasHardwareSensor,
+                        hasHardwareStepSensor = repository.hasHardwareStepSensor,
                         onUpdateProfile = { updated -> repository.updateUserProfile(updated) },
                         onResetData = { repository.resetData() }
                     )

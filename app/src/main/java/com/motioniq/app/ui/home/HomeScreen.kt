@@ -1,4 +1,4 @@
-﻿package com.motioniq.app.ui.home
+package com.motioniq.app.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,6 +20,7 @@ import com.motioniq.app.model.MovementActivity
 import com.motioniq.app.model.UserProfile
 import com.motioniq.app.ui.components.GoalProgressRing
 import com.motioniq.app.ui.components.MetricCard
+import com.motioniq.app.core.step.StepSourceType
 import java.util.Locale
 
 @Composable
@@ -27,6 +28,7 @@ fun HomeScreen(
     summary: DailySummary,
     profile: UserProfile,
     recentActivities: List<MovementActivity>,
+    activeSource: StepSourceType = StepSourceType.HARDWARE_STEP_COUNTER,
     onStartActivityClick: () -> Unit,
     onExploreClick: () -> Unit,
     onActivityClick: (MovementActivity) -> Unit
@@ -105,15 +107,21 @@ fun HomeScreen(
                             )
                             .padding(horizontal = 14.dp, vertical = 6.dp)
                     ) {
+                        val (sensorLabel, isHighConfidence) = when (activeSource) {
+                            StepSourceType.HARDWARE_STEP_COUNTER -> "Sensor: Hardware Step Counter (High Confidence)" to true
+                            StepSourceType.HARDWARE_STEP_DETECTOR -> "Sensor: Hardware Step Detector (High Confidence)" to true
+                            StepSourceType.SOFTWARE_ACCELEROMETER -> "Sensor: Software Pedometer (Medium Confidence)" to false
+                            StepSourceType.NONE -> "Sensor: Unavailable" to false
+                        }
                         Icon(
-                            imageVector = Icons.Default.CheckCircle,
+                            imageVector = if (isHighConfidence) Icons.Default.CheckCircle else Icons.Default.Info,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = if (isHighConfidence) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Sensor: Hardware Step Counter (High Confidence)",
+                            text = sensorLabel,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

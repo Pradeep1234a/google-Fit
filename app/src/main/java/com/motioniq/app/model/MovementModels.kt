@@ -1,4 +1,4 @@
-﻿package com.motioniq.app.model
+package com.motioniq.app.model
 
 enum class ConfidenceLevel {
     HIGH, MEDIUM, LOW
@@ -6,6 +6,8 @@ enum class ConfidenceLevel {
 
 enum class StepSource {
     HARDWARE_SENSOR,
+    HARDWARE_STEP_DETECTOR,
+    SOFTWARE_PEDOMETER,
     HEALTH_CONNECT,
     ESTIMATED
 }
