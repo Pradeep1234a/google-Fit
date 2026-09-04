@@ -1,4 +1,4 @@
-﻿package com.motioniq.app.ui.onboarding
+package com.motioniq.app.ui.onboarding
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -15,6 +15,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import com.motioniq.app.R
 import com.motioniq.app.model.UserProfile
 
 @Composable
@@ -71,19 +75,13 @@ fun OnboardingScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
+                        Image(
+                            painter = painterResource(id = R.drawable.logo),
+                            contentDescription = "MOTIONIQ Logo",
                             modifier = Modifier
-                                .size(88.dp)
-                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DirectionsRun,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(48.dp)
-                            )
-                        }
+                                .size(96.dp)
+                                .clip(CircleShape)
+                        )
 
                         Spacer(modifier = Modifier.height(28.dp))
 
