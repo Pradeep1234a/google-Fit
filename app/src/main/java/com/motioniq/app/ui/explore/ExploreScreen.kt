@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.motioniq.app.model.ActivityType
 import com.motioniq.app.model.ParkPlace
 import com.motioniq.app.theme.*
+import com.motioniq.app.ui.components.ExploreMapComposable
 
 @Composable
 fun ExploreScreen(
@@ -231,55 +232,29 @@ fun ExploreScreen(
                     .height(260.dp)
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    // Map Graphics Canvas
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        // Background Grid & Roads
-                        val roadColor = Color(0xFF232C30)
-                        drawLine(roadColor, Offset(0f, size.height * 0.3f), Offset(size.width, size.height * 0.35f), strokeWidth = 2.dp.toPx())
-                        drawLine(roadColor, Offset(0f, size.height * 0.7f), Offset(size.width, size.height * 0.65f), strokeWidth = 2.dp.toPx())
-                        drawLine(roadColor, Offset(size.width * 0.4f, 0f), Offset(size.width * 0.35f, size.height), strokeWidth = 2.dp.toPx())
-                        drawLine(roadColor, Offset(size.width * 0.75f, 0f), Offset(size.width * 0.7f, size.height), strokeWidth = 2.dp.toPx())
-
-                        // Cyan Dashed Trail Route
-                        val trailPath = Path().apply {
-                            moveTo(size.width * 0.2f, size.height * 0.75f)
-                            cubicTo(
-                                size.width * 0.4f, size.height * 0.45f,
-                                size.width * 0.6f, size.height * 0.35f,
-                                size.width * 0.75f, size.height * 0.3f
-                            )
-                        }
-                        drawPath(
-                            path = trailPath,
-                            color = StitchCyan,
-                            style = Stroke(
-                                width = 3.5.dp.toPx(),
-                                cap = StrokeCap.Round,
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 10f), 0f)
-                            )
-                        )
-
-                        // Trail Nodes
-                        drawCircle(color = StitchCyan, radius = 10.dp.toPx(), center = Offset(size.width * 0.75f, size.height * 0.3f))
-                        drawCircle(color = Color(0xFF2A3438), radius = 8.dp.toPx(), center = Offset(size.width * 0.85f, size.height * 0.55f))
-                        drawCircle(color = Color(0xFF2A3438), radius = 8.dp.toPx(), center = Offset(size.width * 0.2f, size.height * 0.75f))
-                    }
+                    // Real Google Maps View with Dynamic Trails
+                    ExploreMapComposable(
+                        parks = parks,
+                        modifier = Modifier.fillMaxSize()
+                    )
 
                     // Floating Trail Label
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 40.dp, end = 40.dp)
-                            .background(Color(0xFF0F171A), RoundedCornerShape(8.dp))
-                            .border(1.dp, CyanBorderSubtle, RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "Emerald Trail",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+                    if (parks.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 16.dp)
+                                .background(Color(0xFF0F171A).copy(alpha = 0.85f), RoundedCornerShape(8.dp))
+                                .border(1.dp, CyanBorderSubtle, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = parks.first().name,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                     }
 
                     // Map Overlays (3D, Layers, Location)

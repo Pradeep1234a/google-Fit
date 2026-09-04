@@ -13,12 +13,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
-import com.motioniq.app.core.MotionRepository
+import com.motioniq.app.core.location.LocationTracker
+import com.motioniq.app.core.step.StepCountingEngine
 import com.motioniq.app.theme.MOTIONIQTheme
 import com.motioniq.app.ui.MainAppContainer
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-  private val repository by lazy { MotionRepository(applicationContext) }
+
+  @Inject
+  lateinit var stepEngine: StepCountingEngine
+
+  @Inject
+  lateinit var locationTracker: LocationTracker
 
   private val permissionLauncher = registerForActivityResult(
     ActivityResultContracts.RequestMultiplePermissions()
@@ -26,13 +35,13 @@ class MainActivity : ComponentActivity() {
     val activityRecognitionGranted = permissions[Manifest.permission.ACTIVITY_RECOGNITION] ?: false
     if (activityRecognitionGranted) {
       // Re-initialize step engine with newly granted hardware sensor access
-      repository.stepEngine.stop()
-      repository.stepEngine.start()
+      stepEngine.stop()
+      stepEngine.start()
     }
     val locationGranted = (permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false) ||
                           (permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false)
     if (locationGranted) {
-      repository.locationTracker.getLastKnownLocation()
+      locationTracker.getLastKnownLocation()
     }
   }
 
@@ -48,7 +57,7 @@ class MainActivity : ComponentActivity() {
           modifier = Modifier.fillMaxSize(),
           color = MaterialTheme.colorScheme.background
         ) {
-          MainAppContainer(repository)
+          MainAppContainer()
         }
       }
     }

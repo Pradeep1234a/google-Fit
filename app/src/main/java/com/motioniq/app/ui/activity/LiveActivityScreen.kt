@@ -29,6 +29,7 @@ import com.motioniq.app.model.ActivityType
 import com.motioniq.app.model.RoutePoint
 import com.motioniq.app.model.WorkoutState
 import com.motioniq.app.theme.*
+import com.motioniq.app.ui.components.RealMapView
 import java.util.Locale
 
 @Composable
@@ -256,12 +257,19 @@ fun LiveActivityScreen(
                         )
                     }
 
-                    // Route Polyline Canvas
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 20.dp)
-                    ) {
+                    if (routePoints.size >= 2) {
+                        RealMapView(
+                            routePoints = routePoints,
+                            modifier = Modifier.fillMaxSize(),
+                            isLiveTracking = true
+                        )
+                    } else {
+                        // Route Polyline Canvas preview
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp, vertical = 20.dp)
+                        ) {
                         // Background smooth elevation curve
                         val bgPath = Path().apply {
                             moveTo(0f, size.height * 0.7f)
@@ -310,6 +318,7 @@ fun LiveActivityScreen(
                             radius = 6.dp.toPx(),
                             center = Offset(size.width * 0.9f, size.height * 0.15f)
                         )
+                    }
                     }
                 }
             }

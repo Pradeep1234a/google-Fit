@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.motioniq.app.core.MotionRepository
 import com.motioniq.app.model.MovementActivity
 import com.motioniq.app.model.WorkoutState
 import com.motioniq.app.ui.activity.ActivitySelectionScreen
@@ -23,6 +23,7 @@ import com.motioniq.app.ui.onboarding.OnboardingScreen
 import com.motioniq.app.ui.profile.ProfileScreen
 import com.motioniq.app.ui.secondary.*
 import com.motioniq.app.ui.stats.StatsScreen
+import com.motioniq.app.ui.viewmodel.*
 import kotlinx.coroutines.delay
 
 enum class SecondaryScreen {
@@ -39,21 +40,33 @@ enum class SecondaryScreen {
 }
 
 @Composable
-fun MainAppContainer(repository: MotionRepository) {
-    val profile by repository.userProfile.collectAsStateWithLifecycle()
-    val todaySummary by repository.todaySummary.collectAsStateWithLifecycle()
-    val activities by repository.activities.collectAsStateWithLifecycle()
-    val workoutState by repository.workoutState.collectAsStateWithLifecycle()
-    val activeActivityType by repository.activeActivityType.collectAsStateWithLifecycle()
-    val durationSeconds by repository.activeDurationSeconds.collectAsStateWithLifecycle()
-    val distanceMeters by repository.activeDistanceMeters.collectAsStateWithLifecycle()
-    val steps by repository.activeSteps.collectAsStateWithLifecycle()
-    val calories by repository.activeCalories.collectAsStateWithLifecycle()
-    val speedKmh by repository.activeSpeedKmh.collectAsStateWithLifecycle()
-    val paceMinPerKm by repository.activePaceMinPerKm.collectAsStateWithLifecycle()
-    val routePoints by repository.activeRoutePoints.collectAsStateWithLifecycle()
-    val completedActivity by repository.completedActivity.collectAsStateWithLifecycle()
-    val activeSource by repository.stepEngine.activeSource.collectAsStateWithLifecycle()
+fun MainAppContainer(
+    homeViewModel: HomeViewModel = hiltViewModel(),
+    activityViewModel: ActivityViewModel = hiltViewModel(),
+    exploreViewModel: ExploreViewModel = hiltViewModel(),
+    statsViewModel: StatsViewModel = hiltViewModel(),
+    profileViewModel: ProfileViewModel = hiltViewModel(),
+    goalsViewModel: GoalsViewModel = hiltViewModel(),
+    achievementsViewModel: AchievementsViewModel = hiltViewModel(),
+    healthSyncViewModel: HealthSyncViewModel = hiltViewModel(),
+    insightsViewModel: InsightsViewModel = hiltViewModel()
+) {
+    val profile by profileViewModel.profile.collectAsStateWithLifecycle()
+    val todaySummary by homeViewModel.todaySummary.collectAsStateWithLifecycle()
+    val activities by statsViewModel.activities.collectAsStateWithLifecycle()
+    val workoutState by activityViewModel.workoutState.collectAsStateWithLifecycle()
+    val activeActivityType by activityViewModel.activeActivityType.collectAsStateWithLifecycle()
+    val durationSeconds by activityViewModel.durationSeconds.collectAsStateWithLifecycle()
+    val distanceMeters by activityViewModel.distanceMeters.collectAsStateWithLifecycle()
+    val steps by activityViewModel.steps.collectAsStateWithLifecycle()
+    val calories by activityViewModel.calories.collectAsStateWithLifecycle()
+    val speedKmh by activityViewModel.speedKmh.collectAsStateWithLifecycle()
+    val paceMinPerKm by activityViewModel.paceMinPerKm.collectAsStateWithLifecycle()
+    val routePoints by activityViewModel.routePoints.collectAsStateWithLifecycle()
+    val completedActivity by activityViewModel.completedActivity.collectAsStateWithLifecycle()
+    val activeSource by homeViewModel.activeSource.collectAsStateWithLifecycle()
+    val nearbyParks by exploreViewModel.nearbyPlaces.collectAsStateWithLifecycle()
+    val isHealthSyncEnabled by healthSyncViewModel.isSyncEnabled.collectAsStateWithLifecycle()
 
     var showSplash by remember { mutableStateOf(true) }
     var currentTab by remember { mutableStateOf(AppTab.HOME) }
@@ -61,7 +74,7 @@ fun MainAppContainer(repository: MotionRepository) {
     var selectedPastActivity by remember { mutableStateOf<MovementActivity?>(null) }
     var secondaryScreen by remember { mutableStateOf(SecondaryScreen.NONE) }
 
-    // Splash Screen Auto-dismiss
+    // Splash Screen Auto-dismiss (1200ms)
     LaunchedEffect(Unit) {
         delay(1200)
         showSplash = false
@@ -77,7 +90,7 @@ fun MainAppContainer(repository: MotionRepository) {
         OnboardingScreen(
             initialProfile = profile,
             onCompleteOnboarding = { updatedProfile ->
-                repository.completeOnboarding(updatedProfile)
+                profileViewModel.completeOnboarding(updatedProfile)
             }
         )
         return
@@ -95,9 +108,9 @@ fun MainAppContainer(repository: MotionRepository) {
             speedKmh = speedKmh,
             paceMinPerKm = paceMinPerKm,
             routePoints = routePoints,
-            onPauseClick = { repository.pauseWorkout() },
-            onResumeClick = { repository.resumeWorkout() },
-            onStopClick = { repository.stopWorkout() }
+            onPauseClick = { activityViewModel.pauseWorkout() },
+            onResumeClick = { activityViewModel.resumeWorkout() },
+            onStopClick = { activityViewModel.stopWorkout() }
         )
         return
     }
@@ -109,12 +122,12 @@ fun MainAppContainer(repository: MotionRepository) {
             activity = activeSummary,
             onSaveClick = {
                 if (completedActivity != null) {
-                    repository.saveWorkout(activeSummary)
+                    activityViewModel.saveWorkout(activeSummary)
                 }
                 selectedPastActivity = null
             },
             onDiscardClick = {
-                repository.discardWorkout()
+                activityViewModel.discardWorkout()
                 selectedPastActivity = null
             }
         )
@@ -127,14 +140,14 @@ fun MainAppContainer(repository: MotionRepository) {
         ActivitySelectionScreen(
             onSelectActivity = { type ->
                 isSelectingActivity = false
-                repository.startWorkout(type)
+                activityViewModel.startWorkout(type)
             },
             onBackClick = { isSelectingActivity = false }
         )
         return
     }
 
-    // 5. Secondary Screens (04, 11, 12, 13, 16, 17, 18, 19)
+    // 5. Secondary Screens
     if (secondaryScreen != SecondaryScreen.NONE) {
         BackHandler { secondaryScreen = SecondaryScreen.NONE }
 
@@ -142,12 +155,12 @@ fun MainAppContainer(repository: MotionRepository) {
             SecondaryScreen.GOALS -> {
                 GoalsScreen(
                     profile = profile,
-                    currentSteps = todaySummary.steps.toLong(),
+                    currentSteps = todaySummary.steps,
                     currentDistanceKm = todaySummary.distanceMeters / 1000.0,
                     currentActiveMinutes = todaySummary.activeMinutes.toLong(),
                     onBackClick = { secondaryScreen = SecondaryScreen.NONE },
                     onSaveGoals = { newSteps, newDist, newMin ->
-                        repository.updateUserProfile(
+                        profileViewModel.updateProfile(
                             profile.copy(
                                 dailyStepGoal = newSteps,
                                 dailyDistanceGoalKm = newDist,
@@ -173,17 +186,17 @@ fun MainAppContainer(repository: MotionRepository) {
                     onBackClick = { secondaryScreen = SecondaryScreen.NONE },
                     onNotificationsClick = { secondaryScreen = SecondaryScreen.NOTIFICATIONS },
                     onResetDataClick = {
-                        repository.resetData()
+                        profileViewModel.resetAllData()
                         secondaryScreen = SecondaryScreen.NONE
                     }
                 )
             }
             SecondaryScreen.HEALTH_SYNC -> {
                 HealthSyncScreen(
-                    isAvailable = repository.healthConnect.isAvailable,
-                    isSyncEnabled = repository.healthConnect.isSyncEnabled,
+                    isAvailable = healthSyncViewModel.healthConnectBridge.isAvailable,
+                    isSyncEnabled = isHealthSyncEnabled,
                     onToggleSync = { enabled ->
-                        repository.healthConnect.isSyncEnabled = enabled
+                        healthSyncViewModel.toggleSync(enabled)
                     },
                     onBackClick = { secondaryScreen = SecondaryScreen.NONE }
                 )
@@ -202,7 +215,7 @@ fun MainAppContainer(repository: MotionRepository) {
                 ProfileSetupScreen(
                     initialProfile = profile,
                     onSaveProfile = { updated ->
-                        repository.updateUserProfile(updated)
+                        profileViewModel.updateProfile(updated)
                         secondaryScreen = SecondaryScreen.NONE
                     },
                     onBackClick = { secondaryScreen = SecondaryScreen.NONE }
@@ -259,20 +272,20 @@ fun MainAppContainer(repository: MotionRepository) {
                 }
                 AppTab.EXPLORE -> {
                     ExploreScreen(
-                        parks = repository.getDynamicNearbyParks(),
-                        isGpsActive = repository.locationTracker.hasPermission(),
+                        parks = nearbyParks,
+                        isGpsActive = exploreViewModel.isGpsActive,
                         onStartRouteClick = { type ->
-                            repository.startWorkout(type)
+                            activityViewModel.startWorkout(type)
                         }
                     )
                 }
                 AppTab.ANALYTICS -> {
                     StatsScreen(
                         activities = activities,
-                        weeklySteps = repository.getWeeklySteps(),
-                        weeklyTotal = repository.getWeeklyTotalSteps(),
-                        averageDaily = repository.getAverageDailySteps(),
-                        bestDay = repository.getBestDay(),
+                        weeklySteps = statsViewModel.getWeeklySteps(),
+                        weeklyTotal = statsViewModel.getWeeklyTotalSteps(),
+                        averageDaily = statsViewModel.getAverageDailySteps(),
+                        bestDay = statsViewModel.getBestDay(),
                         onActivityClick = { activity -> selectedPastActivity = activity },
                         onViewAllActivities = { secondaryScreen = SecondaryScreen.HISTORY }
                     )
@@ -280,7 +293,7 @@ fun MainAppContainer(repository: MotionRepository) {
                 AppTab.SETTINGS -> {
                     ProfileScreen(
                         profile = profile,
-                        isHealthConnectSyncEnabled = repository.healthConnect.isSyncEnabled,
+                        isHealthConnectSyncEnabled = isHealthSyncEnabled,
                         onNavigateToPersonalInfo = { secondaryScreen = SecondaryScreen.PROFILE_SETUP },
                         onNavigateToGoals = { secondaryScreen = SecondaryScreen.GOALS },
                         onNavigateToAchievements = { secondaryScreen = SecondaryScreen.ACHIEVEMENTS },
@@ -289,7 +302,7 @@ fun MainAppContainer(repository: MotionRepository) {
                         onNavigateToSettings = { secondaryScreen = SecondaryScreen.SETTINGS },
                         onNavigateToNotifications = { secondaryScreen = SecondaryScreen.NOTIFICATIONS },
                         onNavigateToHelp = { secondaryScreen = SecondaryScreen.HELP },
-                        onResetData = { repository.resetData() }
+                        onResetData = { profileViewModel.resetAllData() }
                     )
                 }
             }

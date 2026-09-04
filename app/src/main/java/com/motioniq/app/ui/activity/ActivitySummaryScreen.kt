@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.motioniq.app.core.GpsCalculator
 import com.motioniq.app.model.MovementActivity
 import com.motioniq.app.theme.*
-import com.motioniq.app.ui.components.RouteMapCanvas
+import com.motioniq.app.ui.components.RealMapView
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -204,7 +204,7 @@ fun ActivitySummaryScreen(
                     .fillMaxWidth()
                     .height(200.dp)
             ) {
-                RouteMapCanvas(
+                RealMapView(
                     routePoints = activity.routePoints,
                     modifier = Modifier.fillMaxSize(),
                     isLiveTracking = false

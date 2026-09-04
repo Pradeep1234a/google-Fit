@@ -345,7 +345,7 @@ class StepCountingEngine(private val context: Context) : SensorEventListener {
         }
     }
 
-    // ── Public API for MotionRepository ──
+    // ── Public API for Repositories & Analytics ──
 
     /** Returns historical daily step data (not including today) */
     fun getRecentHistory(days: Int = 30): List<Pair<String, Long>> {
